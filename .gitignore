@@ -10,6 +10,9 @@ ai-workspace/generated/
 ai-workspace/indexes/
 ai-workspace/code-review-graph/
 
+# compatibility oracle checkout
+/.compat/
+
 # editor / OS
 .DS_Store
 Thumbs.db

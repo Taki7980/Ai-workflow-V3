@@ -1,0 +1,417 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "Taki7980/ai-workflow-control-plane-v2",
+    "commit": "554302c378f69809fbd09ff001eb7cfdb9af5005"
+  },
+  "routing": {
+    "answer_explanation": {
+      "lane": "answer",
+      "risk": "low",
+      "reasons": [
+        "read-only question/explanation"
+      ],
+      "structural_context": false,
+      "confidence": 0.96
+    },
+    "sensitive_read_only": {
+      "lane": "answer",
+      "risk": "low",
+      "reasons": [
+        "read-only question/explanation"
+      ],
+      "structural_context": false,
+      "confidence": 0.96
+    },
+    "high_risk_payment_auth": {
+      "lane": "full",
+      "risk": "high",
+      "reasons": [
+        "high-risk change keyword: auth, payment"
+      ],
+      "structural_context": false,
+      "confidence": 0.99
+    },
+    "high_risk_authentication": {
+      "lane": "full",
+      "risk": "high",
+      "reasons": [
+        "high-risk change keyword: authentication"
+      ],
+      "structural_context": false,
+      "confidence": 0.99
+    },
+    "high_risk_payment_schema": {
+      "lane": "full",
+      "risk": "high",
+      "reasons": [
+        "high-risk change keyword: payment, migration, schema"
+      ],
+      "structural_context": false,
+      "confidence": 0.99
+    },
+    "high_risk_deploy_contract": {
+      "lane": "full",
+      "risk": "high",
+      "reasons": [
+        "high-risk change keyword: deploy, public api, contract change"
+      ],
+      "structural_context": false,
+      "confidence": 0.99
+    },
+    "small_known_file": {
+      "lane": "small",
+      "risk": "low",
+      "reasons": [
+        "bounded low-complexity edit",
+        "explicit file scope: 1 file(s)"
+      ],
+      "structural_context": false,
+      "confidence": 0.9
+    },
+    "structural_blast_radius": {
+      "lane": "full",
+      "risk": "medium",
+      "reasons": [
+        "multi-hop/structural context requested"
+      ],
+      "structural_context": true,
+      "confidence": 0.94
+    },
+    "author_not_auth": {
+      "lane": "answer",
+      "risk": "low",
+      "reasons": [
+        "read-only question/explanation"
+      ],
+      "structural_context": false,
+      "confidence": 0.88
+    },
+    "unbounded_mutation": {
+      "lane": "full",
+      "risk": "medium",
+      "reasons": [
+        "implementation scope not safely bounded"
+      ],
+      "structural_context": false,
+      "confidence": 0.78
+    },
+    "ambiguous_defaults_full": {
+      "lane": "full",
+      "risk": "medium",
+      "reasons": [
+        "ambiguous task defaults to safe full-lane planning"
+      ],
+      "structural_context": false,
+      "confidence": 0.62
+    }
+  },
+  "retrieval": {
+    "exact_identifier": {
+      "intent": "exact",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": false,
+      "reason": "exact identifier/path/endpoint signal"
+    },
+    "semantic_paraphrase": {
+      "intent": "semantic",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": false,
+      "reason": "natural-language semantic intent"
+    },
+    "structural_exact_anchor": {
+      "intent": "structural",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": true,
+      "reason": "structural relationship requested",
+      "structural_patterns": [
+        "callers_of"
+      ]
+    },
+    "structural_without_anchor": {
+      "intent": "mixed",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": true,
+      "reason": "structural relationship needs entry-point discovery",
+      "structural_patterns": [
+        "impact"
+      ]
+    },
+    "callees_exact_anchor": {
+      "intent": "structural",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": true,
+      "reason": "structural relationship requested",
+      "structural_patterns": [
+        "callees_of"
+      ]
+    },
+    "references_exact_anchor": {
+      "intent": "structural",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": true,
+      "reason": "structural relationship requested",
+      "structural_patterns": [
+        "references_to"
+      ]
+    },
+    "semantic_and_exact": {
+      "intent": "mixed",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": false,
+      "reason": "identifier and semantic intent both present"
+    },
+    "ambiguous_answer_query": {
+      "intent": "mixed",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": false,
+      "reason": "read-only query with ambiguous retrieval intent"
+    },
+    "bounded_default": {
+      "intent": "exact",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": false,
+      "reason": "bounded deterministic default"
+    }
+  },
+  "remote_identity": {
+    "https_credentials": "example.com/Taki7980/Repo",
+    "scp_remote": "github.com/Taki7980/Repo",
+    "file_url": "opaque:e4461b48f1a31efa",
+    "empty": null
+  },
+  "repository_id": {
+    "root_without_remote": "be4df980feef21cb8e2f9f7cfdf9e2fc298c9f92d48fba92de1f8cc7bb18725d",
+    "backend_remote": "2cc8ed09132fc2296b0e0bd30236e9d17500bdb7802b360610ecb5dc9fc2c5be",
+    "case_preserving_remote": "bd3aac64be9b9043343ef457df7a89833b6a41af8ddfa5f0c78e5c18f434365d"
+  },
+  "config": {
+    "version": 2,
+    "budgets": {
+      "answer": {
+        "estimated_tokens": 1200,
+        "output_tokens": 450
+      },
+      "small": {
+        "estimated_tokens": 2500,
+        "output_tokens": 700
+      },
+      "full": {
+        "estimated_tokens": 6000,
+        "output_tokens": 1200
+      }
+    },
+    "classifier": {
+      "high_risk_keywords": [
+        "auth",
+        "authentication",
+        "authorization",
+        "security",
+        "payment",
+        "billing",
+        "migration",
+        "schema",
+        "database",
+        "delete data",
+        "destructive",
+        "concurrency",
+        "race condition",
+        "deploy",
+        "production",
+        "public api",
+        "contract change",
+        "permission",
+        "credential",
+        "secret"
+      ],
+      "full_keywords": [
+        "refactor",
+        "architecture",
+        "multi-file",
+        "cross-cutting",
+        "end-to-end",
+        "redesign",
+        "performance",
+        "distributed",
+        "integration",
+        "implement feature"
+      ],
+      "answer_keywords": [
+        "explain",
+        "what is",
+        "how does",
+        "why does",
+        "compare",
+        "difference",
+        "where is",
+        "show me",
+        "understand"
+      ],
+      "small_keywords": [
+        "rename",
+        "typo",
+        "copy change",
+        "small fix",
+        "one-line",
+        "one line",
+        "adjust",
+        "update text"
+      ]
+    },
+    "context": {
+      "max_results_per_source": 6,
+      "source_shares": {
+        "hot_cache": 0.15,
+        "lightweight": 0.3,
+        "crg": 0.4,
+        "source_fallback": 0.15
+      },
+      "crg": {
+        "mode": "auto",
+        "min_lane": "full",
+        "structural_keywords": [
+          "caller",
+          "callee",
+          "dependency",
+          "dependents",
+          "impact",
+          "blast radius",
+          "flow",
+          "architecture",
+          "tests for",
+          "refactor",
+          "what breaks",
+          "affected"
+        ],
+        "min_source_files": 250,
+        "changed_files_threshold": 3
+      },
+      "scip": {
+        "mode": "auto"
+      },
+      "semantic": {
+        "mode": "auto",
+        "provider_id": "builtin-local",
+        "command": "",
+        "timeout_seconds": 8,
+        "max_results": 6,
+        "max_output_bytes": 8388608,
+        "env_allowlist": []
+      },
+      "external_retrievers": [],
+      "sufficiency": {
+        "threshold": 0.72
+      },
+      "selective_retrieval": {
+        "enabled": true,
+        "minimum_coverage": 0.15
+      },
+      "adaptive_budget": {
+        "enabled": true,
+        "high_sufficiency_fraction": 0.45,
+        "medium_sufficiency_fraction": 0.7,
+        "minimum_chars": 900
+      },
+      "selector": {
+        "enabled": true,
+        "tight_budget_fraction": 0.3,
+        "mandatory_structural_evidence": true,
+        "max_selector_candidates": 200
+      },
+      "telemetry": {
+        "mode": "mutations"
+      },
+      "learning": {
+        "mode": "off",
+        "kill_switch": false,
+        "exploration_probability": 0.05,
+        "allowed_risks": [
+          "low"
+        ],
+        "eligible_arms": [
+          "adaptive_math",
+          "source_rank",
+          "bm25_rank",
+          "rrf_only",
+          "rrf_mmr_050",
+          "rrf_mmr_075",
+          "rrf_mmr_090"
+        ]
+      },
+      "deployment": {
+        "enabled": false,
+        "state_path": "ai-workspace/generated/learning/deployment/active.json",
+        "signing_key_env": "AI_WORKFLOW_POLICY_SIGNING_KEY",
+        "auto_rollback": true,
+        "incident_bundles": true
+      },
+      "production": {
+        "enabled": false,
+        "sqlite_path": "ai-workspace/generated/learning/production/events.sqlite3",
+        "busy_timeout_ms": 5000
+      },
+      "targeted_search": {
+        "max_matches": 12,
+        "max_file_bytes": 500000
+      }
+    },
+    "workspace": {
+      "roots": [],
+      "max_roots": 4,
+      "registry": "ai-workspace/config/repositories.json",
+      "repository_graph": "ai-workspace/config/repository-graph.json",
+      "hierarchical_retrieval": {
+        "enabled": true,
+        "max_primary_repositories": 2,
+        "max_graph_expansions": 2,
+        "relationships": [
+          "depends_on",
+          "publishes_api",
+          "consumes_schema",
+          "deploys"
+        ]
+      },
+      "discovery": {
+        "max_depth": 8,
+        "require_acceptance": false,
+        "auto_include_on_setup": true
+      }
+    },
+    "execution": {
+      "prefer_superpowers_for_full": true,
+      "native_fallback": true,
+      "superpowers": {
+        "mode": "auto"
+      },
+      "orchestration_budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      }
+    },
+    "handoff": {
+      "max_lines": 30
+    },
+    "memory": {
+      "max_results": 5,
+      "minimum_confidence": 0.55
+    },
+    "models": {
+      "answer": "fast",
+      "small": "fast",
+      "full_medium": "standard",
+      "full_high": "capable"
+    }
+  }
+}
