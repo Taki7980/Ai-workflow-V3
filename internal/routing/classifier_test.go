@@ -1,9 +1,10 @@
 package routing
 
 import (
+	"testing"
+
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
-	"testing"
 )
 
 func TestClassifierParityCases(t *testing.T) {
@@ -20,7 +21,7 @@ func TestClassifierParityCases(t *testing.T) {
 		{"do something useful", model.LaneFull, model.RiskMedium},
 	}
 	for _, c := range cases {
-		d := Classify(c.task, c.cfg)
+		d := Classify(c.task, cfg)
 		if d.Lane != c.lane || d.Risk != c.risk {
 			t.Fatalf("%q => %s/%s want %s/%s", c.task, d.Lane, d.Risk, c.lane, c.risk)
 		}
