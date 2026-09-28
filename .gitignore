@@ -1,0 +1,17 @@
+# binaries
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# workspace runtime state
+ai-workspace/generated/
+ai-workspace/indexes/
+ai-workspace/code-review-graph/
+
+# editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

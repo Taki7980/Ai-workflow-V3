@@ -1,0 +1,229 @@
+package config
+
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+)
+
+const (
+	CurrentVersion = 2
+	RelativePath   = "ai-workspace/config/control-plane.json"
+)
+
+type Budget struct {
+	EstimatedTokens int `json:"estimated_tokens"`
+	OutputTokens    int `json:"output_tokens"`
+}
+
+type Budgets struct {
+	Answer Budget `json:"answer"`
+	Small  Budget `json:"small"`
+	Full   Budget `json:"full"`
+}
+
+type Classifier struct {
+	HighRiskKeywords []string `json:"high_risk_keywords"`
+	FullKeywords     []string `json:"full_keywords"`
+	AnswerKeywords   []string `json:"answer_keywords"`
+	SmallKeywords    []string `json:"small_keywords"`
+}
+
+type CRG struct {
+	Mode               string   `json:"mode"`
+	MinLane            string   `json:"min_lane"`
+	StructuralKeywords []string `json:"structural_keywords"`
+	MinSourceFiles     int      `json:"min_source_files"`
+	ChangedThreshold   int      `json:"changed_files_threshold"`
+}
+
+type Sufficiency struct {
+	Threshold float64 `json:"threshold"`
+}
+
+type AdaptiveBudget struct {
+	Enabled                 bool    `json:"enabled"`
+	HighSufficiencyFraction float64 `json:"high_sufficiency_fraction"`
+	MediumFraction          float64 `json:"medium_sufficiency_fraction"`
+	MinimumChars            int     `json:"minimum_chars"`
+}
+
+type Context struct {
+	MaxResultsPerSource int                `json:"max_results_per_source"`
+	SourceShares        map[string]float64 `json:"source_shares"`
+	CRG                 CRG                `json:"crg"`
+	Sufficiency         Sufficiency        `json:"sufficiency"`
+	AdaptiveBudget      AdaptiveBudget     `json:"adaptive_budget"`
+}
+
+type Discovery struct {
+	MaxDepth           int  `json:"max_depth"`
+	RequireAcceptance  bool `json:"require_acceptance"`
+	AutoIncludeOnSetup bool `json:"auto_include_on_setup"`
+}
+
+type Workspace struct {
+	Roots           []string  `json:"roots"`
+	MaxRoots        int       `json:"max_roots"`
+	Registry        string    `json:"registry"`
+	RepositoryGraph string    `json:"repository_graph"`
+	Discovery       Discovery `json:"discovery"`
+}
+
+type Execution struct {
+	PreferSuperpowersForFull bool `json:"prefer_superpowers_for_full"`
+	NativeFallback           bool `json:"native_fallback"`
+}
+
+type Handoff struct {
+	MaxLines int `json:"max_lines"`
+}
+type Memory struct {
+	MaxResults        int     `json:"max_results"`
+	MinimumConfidence float64 `json:"minimum_confidence"`
+}
+type Models struct {
+	Answer     string `json:"answer"`
+	Small      string `json:"small"`
+	FullMedium string `json:"full_medium"`
+	FullHigh   string `json:"full_high"`
+}
+
+type Config struct {
+	Version    int        `json:"version"`
+	Budgets    Budgets    `json:"budgets"`
+	Classifier Classifier `json:"classifier"`
+	Context    Context    `json:"context"`
+	Workspace  Workspace  `json:"workspace"`
+	Execution  Execution  `json:"execution"`
+	Handoff    Handoff    `json:"handoff"`
+	Memory     Memory     `json:"memory"`
+	Models     Models     `json:"models"`
+}
+
+func Default() Config {
+	return Config{
+		Version: CurrentVersion,
+		Budgets: Budgets{
+			Answer: Budget{EstimatedTokens: 1200, OutputTokens: 450},
+			Small:  Budget{EstimatedTokens: 2500, OutputTokens: 700},
+			Full:   Budget{EstimatedTokens: 6000, OutputTokens: 1200},
+		},
+		Classifier: Classifier{
+			HighRiskKeywords: []string{"auth", "authentication", "authorization", "security", "payment", "billing", "migration", "schema", "database", "delete data", "destructive", "concurrency", "race condition", "deploy", "production", "public api", "contract change", "permission", "credential", "secret"},
+			FullKeywords:     []string{"refactor", "architecture", "multi-file", "cross-cutting", "end-to-end", "redesign", "performance", "distributed", "integration", "implement feature"},
+			AnswerKeywords:   []string{"explain", "what is", "how does", "why does", "compare", "difference", "where is", "show me", "understand"},
+			SmallKeywords:    []string{"rename", "typo", "copy change", "small fix", "one-line", "one line", "adjust", "update text"},
+		},
+		Context: Context{
+			MaxResultsPerSource: 6,
+			SourceShares:        map[string]float64{"hot_cache": .15, "lightweight": .30, "crg": .40, "source_fallback": .15},
+			CRG:                 CRG{Mode: "auto", MinLane: "full", StructuralKeywords: []string{"caller", "callee", "dependency", "dependents", "impact", "blast radius", "flow", "architecture", "tests for", "refactor", "what breaks", "affected"}, MinSourceFiles: 250, ChangedThreshold: 3},
+			Sufficiency:         Sufficiency{Threshold: .72},
+			AdaptiveBudget:      AdaptiveBudget{Enabled: true, HighSufficiencyFraction: .45, MediumFraction: .70, MinimumChars: 900},
+		},
+		Workspace: Workspace{Roots: []string{}, MaxRoots: 4, Registry: "ai-workspace/config/repositories.json", RepositoryGraph: "ai-workspace/config/repository-graph.json", Discovery: Discovery{MaxDepth: 8, RequireAcceptance: false, AutoIncludeOnSetup: true}},
+		Execution: Execution{PreferSuperpowersForFull: true, NativeFallback: true},
+		Handoff:   Handoff{MaxLines: 30},
+		Memory:    Memory{MaxResults: 5, MinimumConfidence: .55},
+		Models:    Models{Answer: "fast", Small: "fast", FullMedium: "standard", FullHigh: "capable"},
+	}
+}
+
+func Path(root string) string { return filepath.Join(root, filepath.FromSlash(RelativePath)) }
+
+func Load(root string) (Config, error) {
+	p := Path(root)
+	b, err := os.ReadFile(p)
+	if errors.Is(err, os.ErrNotExist) {
+		return Default(), nil
+	}
+	if err != nil {
+		return Config{}, err
+	}
+	var c Config
+	dec := json.NewDecoder(bytes.NewReader(b))
+	// V3 validates known safety-critical fields while tolerating additive V2 fields
+	// during the migration window. Existing config files are never rewritten on load.
+	if err := dec.Decode(&c); err != nil {
+		return Config{}, fmt.Errorf("decode config: %w", err)
+	}
+	if err := c.Validate(); err != nil {
+		return Config{}, err
+	}
+	return c, nil
+}
+
+func (c Config) Validate() error {
+	if c.Version != CurrentVersion {
+		return fmt.Errorf("unsupported config version %d", c.Version)
+	}
+	if c.Workspace.Discovery.MaxDepth < 0 || c.Workspace.Discovery.MaxDepth > 64 {
+		return fmt.Errorf("workspace.discovery.max_depth must be 0..64")
+	}
+	if c.Context.Sufficiency.Threshold < 0 || c.Context.Sufficiency.Threshold > 1 {
+		return fmt.Errorf("context.sufficiency.threshold must be 0..1")
+	}
+	if c.Budgets.Answer.EstimatedTokens <= 0 || c.Budgets.Small.EstimatedTokens <= 0 || c.Budgets.Full.EstimatedTokens <= 0 {
+		return fmt.Errorf("budgets must be positive")
+	}
+	return nil
+}
+
+// DefaultDocument returns the V2-compatible configuration document used when
+// creating a workspace. The typed Config above intentionally models only the
+// fields the V3 foundation consumes today; the complete document preserves V2
+// keys so either runtime can inspect the same workspace during migration.
+func DefaultDocument() map[string]any {
+	baseBytes, _ := json.Marshal(Default())
+	var doc map[string]any
+	_ = json.Unmarshal(baseBytes, &doc)
+	ctx := doc["context"].(map[string]any)
+	ctx["scip"] = map[string]any{"mode": "auto"}
+	ctx["semantic"] = map[string]any{
+		"mode": "auto", "provider_id": "builtin-local", "command": "",
+		"timeout_seconds": 8, "max_results": 6, "max_output_bytes": 8388608,
+		"env_allowlist": []string{},
+	}
+	ctx["external_retrievers"] = []any{}
+	ctx["selective_retrieval"] = map[string]any{"enabled": true, "minimum_coverage": 0.15}
+	ctx["selector"] = map[string]any{
+		"enabled": true, "tight_budget_fraction": 0.3,
+		"mandatory_structural_evidence": true, "max_selector_candidates": 200,
+	}
+	ctx["telemetry"] = map[string]any{"mode": "mutations"}
+	ctx["learning"] = map[string]any{
+		"mode": "off", "kill_switch": false, "exploration_probability": 0.05,
+		"allowed_risks": []string{"low"},
+		"eligible_arms": []string{"adaptive_math", "source_rank", "bm25_rank", "rrf_only", "rrf_mmr_050", "rrf_mmr_075", "rrf_mmr_090"},
+	}
+	ctx["deployment"] = map[string]any{
+		"enabled":         false,
+		"state_path":      "ai-workspace/generated/learning/deployment/active.json",
+		"signing_key_env": "AI_WORKFLOW_POLICY_SIGNING_KEY",
+		"auto_rollback":   true, "incident_bundles": true,
+	}
+	ctx["production"] = map[string]any{
+		"enabled":         false,
+		"sqlite_path":     "ai-workspace/generated/learning/production/events.sqlite3",
+		"busy_timeout_ms": 5000,
+	}
+	ctx["targeted_search"] = map[string]any{"max_matches": 12, "max_file_bytes": 500000}
+
+	workspace := doc["workspace"].(map[string]any)
+	workspace["hierarchical_retrieval"] = map[string]any{
+		"enabled": true, "max_primary_repositories": 2, "max_graph_expansions": 2,
+		"relationships": []string{"depends_on", "publishes_api", "consumes_schema", "deploys"},
+	}
+
+	execution := doc["execution"].(map[string]any)
+	execution["superpowers"] = map[string]any{"mode": "auto"}
+	execution["orchestration_budget"] = map[string]any{
+		"max_agent_slots": 4, "max_crg_calls": 6, "max_graph_depth": 3,
+		"review_passes": 2, "verification_passes": 2,
+	}
+	return doc
+}
