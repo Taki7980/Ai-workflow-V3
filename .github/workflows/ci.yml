@@ -62,6 +62,6 @@ jobs:
             --output /tmp/v2-contracts.json \
             --expected-commit "$(cat compat/v2.lock)"
       - name: Verify frozen fixtures are current
-        run: diff -u compat/fixtures/v2-contracts.json /tmp/v2-contracts.json
+        run: python tools/compat/verify_fixture.py compat/fixtures/v2-contracts.json /tmp/v2-contracts.json
       - name: Execute V3 against V2 contracts
         run: go run ./cmd/compat-harness --cases compat/cases.json --fixtures compat/fixtures/v2-contracts.json --lock compat/v2.lock

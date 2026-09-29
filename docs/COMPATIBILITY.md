@@ -33,8 +33,10 @@ The first executable V2 -> V3 compatibility gate lives under `compat/`.
 
 CI performs two independent checks:
 
-1. check out V2 at the pinned commit, regenerate the golden file, and fail if the committed fixture differs;
+1. check out V2 at the pinned commit, regenerate the golden file, and compare it semantically against the committed fixture;
 2. execute the same cases through V3 using `cmd/compat-harness` and fail on any contract-level mismatch.
+
+JSON object-key ordering is the only ignored representation detail. Values, array ordering, reasons, confidence values, structural patterns, safety flags, hashes, and configuration fields must match exactly.
 
 The harness currently freezes:
 
@@ -44,7 +46,7 @@ The harness currently freezes:
 - repository ID hashing;
 - the complete V2 default control-plane configuration document.
 
-No safety-relevant field is normalized away. A deliberate incompatibility requires changing the cases/fixture provenance and documenting the decision rather than weakening comparison.
+A deliberate incompatibility requires changing the cases/fixture provenance and documenting the decision rather than weakening comparison.
 
 Run locally:
 
