@@ -1,0 +1,150 @@
+{
+  "schema_version": 1,
+  "name": "v3-lexical-retrieval-baseline-v1",
+  "k": 5,
+  "repository": "fixture/backend",
+  "symbols": [
+    {
+      "name": "ProcessPayment",
+      "kind": "function",
+      "path": "internal/payment/service.go",
+      "line": 20
+    },
+    {
+      "name": "PreventDuplicateCharge",
+      "kind": "function",
+      "path": "internal/payment/service.go",
+      "line": 58
+    },
+    {
+      "name": "ValidatePaymentRequest",
+      "kind": "function",
+      "path": "internal/payment/validate.go",
+      "line": 14
+    },
+    {
+      "name": "RetryPayment",
+      "kind": "function",
+      "path": "internal/payment/retry.go",
+      "line": 22
+    },
+    {
+      "name": "RetryPolicy",
+      "kind": "type",
+      "path": "internal/payment/retry.go",
+      "line": 8
+    },
+    {
+      "name": "ValidateToken",
+      "kind": "function",
+      "path": "internal/auth/token.go",
+      "line": 18
+    },
+    {
+      "name": "RegisterUser",
+      "kind": "function",
+      "path": "internal/user/register.go",
+      "line": 25
+    },
+    {
+      "name": "TestProcessPayment",
+      "kind": "function",
+      "path": "tests/payment/service_test.go",
+      "line": 12
+    },
+    {
+      "name": "PaymentGuide",
+      "kind": "document",
+      "path": "docs/payment.md",
+      "line": 1
+    }
+  ],
+  "file_token_estimates": {
+    "internal/payment/service.go": 900,
+    "internal/payment/validate.go": 450,
+    "internal/payment/retry.go": 800,
+    "internal/auth/token.go": 350,
+    "internal/user/register.go": 500,
+    "tests/payment/service_test.go": 700,
+    "docs/payment.md": 500
+  },
+  "cases": [
+    {
+      "name": "exact_symbol",
+      "task_type": "trace2code",
+      "query": "Where is ProcessPayment?",
+      "gold_paths": [
+        "internal/payment/service.go"
+      ]
+    },
+    {
+      "name": "semantic_charge_guard",
+      "task_type": "comment2context",
+      "query": "prevent duplicate customer charges during retries",
+      "gold_paths": [
+        "internal/payment/service.go"
+      ]
+    },
+    {
+      "name": "retry_policy",
+      "task_type": "comment2context",
+      "query": "payment retry policy",
+      "gold_paths": [
+        "internal/payment/retry.go"
+      ]
+    },
+    {
+      "name": "auth_token",
+      "task_type": "trace2code",
+      "query": "validate authentication token",
+      "gold_paths": [
+        "internal/auth/token.go"
+      ]
+    },
+    {
+      "name": "user_registration",
+      "task_type": "comment2context",
+      "query": "register user",
+      "gold_paths": [
+        "internal/user/register.go"
+      ]
+    },
+    {
+      "name": "test_localization",
+      "task_type": "code2test",
+      "query": "tests for ProcessPayment",
+      "gold_paths": [
+        "tests/payment/service_test.go"
+      ]
+    },
+    {
+      "name": "payment_docs",
+      "task_type": "comment2context",
+      "query": "payment documentation guide",
+      "gold_paths": [
+        "docs/payment.md"
+      ]
+    },
+    {
+      "name": "natural_no_gold",
+      "task_type": "no_gold",
+      "query": "kubernetes ingress controller",
+      "gold_paths": []
+    },
+    {
+      "name": "counterfactual_wrong_repo",
+      "task_type": "counterfactual_wrong_repo",
+      "query": "frontend payment checkout button",
+      "gold_paths": []
+    }
+  ],
+  "thresholds": {
+    "min_recall_at_1": 0.8,
+    "min_recall_at_k": 1,
+    "min_mrr": 0.9,
+    "min_file_f1_at_k": 0.55,
+    "min_context_yield": 0.45,
+    "max_no_gold_false_positive_rate": 0.5,
+    "max_avg_retrieved_tokens": 2300
+  }
+}
