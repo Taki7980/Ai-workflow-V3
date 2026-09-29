@@ -16,8 +16,14 @@ var (
 )
 
 func PlanRetrieval(query string, decision model.RouteDecision) model.RetrievalPlan {
+	return PlanRetrievalWithAnchors(query, decision, "", "")
+}
+
+// PlanRetrievalWithAnchors preserves the V2 retrieval contract for callers that
+// already resolved an exact symbol or endpoint before policy classification.
+func PlanRetrievalWithAnchors(query string, decision model.RouteDecision, symbol, endpoint string) model.RetrievalPlan {
 	text := strings.Join(strings.Fields(query), " ")
-	exact := pathSignal.FindStringIndex(text) != nil
+	exact := symbol != "" || endpoint != "" || pathSignal.FindStringIndex(text) != nil
 	if !exact {
 		for _, tok := range identifier.FindAllString(text, -1) {
 			if strings.Contains(tok, "_") || hasInteriorUpper(tok) {
@@ -61,13 +67,14 @@ func hasInteriorUpper(s string) bool {
 	}
 	return false
 }
+
 func structuralRequirements(s string) []string {
 	checks := []struct{ name, rx string }{
 		{"impact", `(?i)\b(impact|blast\s+radius|what\s+breaks|affected)\b`},
 		{"tests_for", `(?i)\b(tests?\s+(?:for|cover|covering)|which\s+tests?|test\s+coverage)\b`},
 		{"references_to", `(?i)\b(references?\s+to|find\s+references?|usages?\s+of)\b`},
 		{"callers_of", `(?i)\b(who\s+calls?|callers?|called\s+by|dependents?)\b`},
-		{"callees_of", `(?i)\b(callees?|calls?\s+into|dependencies?|imports?\s+of)\b`},
+		{"callees_of", `(?i)\b(callees?|what\s+does\b.*\bcall|calls?\s+into|dependencies?|imports?\s+of)\b`},
 		{"architecture", `(?i)\b(architecture|execution\s+flow|call\s+graph)\b`},
 	}
 	out := []string{}

@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "routing": [
+    {
+      "name": "answer_explanation",
+      "task": "explain how this service works"
+    },
+    {
+      "name": "sensitive_read_only",
+      "task": "explain how auth works"
+    },
+    {
+      "name": "high_risk_payment_auth",
+      "task": "small fix to payment auth"
+    },
+    {
+      "name": "high_risk_authentication",
+      "task": "Change authentication token validation"
+    },
+    {
+      "name": "high_risk_payment_schema",
+      "task": "Modify payment schema migration"
+    },
+    {
+      "name": "high_risk_deploy_contract",
+      "task": "Deploy a public API contract change"
+    },
+    {
+      "name": "small_known_file",
+      "task": "rename typo in src/ui.ts"
+    },
+    {
+      "name": "structural_blast_radius",
+      "task": "what is the blast radius if ProcessPayment changes?"
+    },
+    {
+      "name": "author_not_auth",
+      "task": "who is the author of src/ui.ts"
+    },
+    {
+      "name": "unbounded_mutation",
+      "task": "remove unused files and folders"
+    },
+    {
+      "name": "ambiguous_defaults_full",
+      "task": "do something useful"
+    }
+  ],
+  "retrieval": [
+    {
+      "name": "exact_identifier",
+      "query": "Where is ProcessPayment?",
+      "decision": {
+        "lane": "answer",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "symbol": "ProcessPayment"
+    },
+    {
+      "name": "semantic_paraphrase",
+      "query": "Where do we prevent duplicate customer charges during retries?",
+      "decision": {
+        "lane": "answer",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "structural_exact_anchor",
+      "query": "Who calls ProcessPayment?",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": true,
+        "confidence": 0.5
+      },
+      "symbol": "ProcessPayment"
+    },
+    {
+      "name": "structural_without_anchor",
+      "query": "What breaks if the payment retry handler changes?",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": true,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "callees_exact_anchor",
+      "query": "What does ProcessPayment call?",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": true,
+        "confidence": 0.5
+      },
+      "symbol": "ProcessPayment"
+    },
+    {
+      "name": "references_exact_anchor",
+      "query": "Find references to ProcessPayment",
+      "decision": {
+        "lane": "answer",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "symbol": "ProcessPayment"
+    },
+    {
+      "name": "semantic_and_exact",
+      "query": "How does ProcessPayment prevent duplicate charges?",
+      "decision": {
+        "lane": "answer",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "symbol": "ProcessPayment"
+    },
+    {
+      "name": "ambiguous_answer_query",
+      "query": "payment retry policy",
+      "decision": {
+        "lane": "answer",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "bounded_default",
+      "query": "payment retry policy",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    }
+  ],
+  "remote_identity": [
+    {
+      "name": "https_credentials",
+      "input": "https://token@example.com/Taki7980/Repo.git"
+    },
+    {
+      "name": "scp_remote",
+      "input": "git@GITHUB.com:Taki7980/Repo.git"
+    },
+    {
+      "name": "file_url",
+      "input": "file:///private/repo"
+    },
+    {
+      "name": "empty",
+      "input": ""
+    }
+  ],
+  "repository_id": [
+    {
+      "name": "root_without_remote",
+      "relative_path": ".",
+      "remote_identity": null
+    },
+    {
+      "name": "backend_remote",
+      "relative_path": "backend",
+      "remote_identity": "github.com/acme/backend"
+    },
+    {
+      "name": "case_preserving_remote",
+      "relative_path": "api",
+      "remote_identity": "example.com/Team/Repo"
+    }
+  ],
+  "config_snapshot": true
+}

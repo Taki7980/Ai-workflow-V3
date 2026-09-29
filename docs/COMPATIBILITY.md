@@ -25,15 +25,44 @@ V3 follows a contract-level compatibility model.
 - data structures used by BM25/RRF/MMR;
 - internal package layout.
 
-## Differential fixtures
+## Differential compatibility harness
 
-Every migrated behavior should have at least one fixture with:
+The first executable V2 -> V3 compatibility gate lives under `compat/`.
 
-```text
-input/
-expected-v2.json
-actual-v3.json
-normalization.json
+`compat/v2.lock` pins the exact V2 oracle commit. `compat/cases.json` contains reviewable inputs. `tools/compat/capture_v2.py` executes those inputs against the pinned V2 implementation and emits deterministic golden outputs. `compat/fixtures/v2-contracts.json` is the committed snapshot of those outputs.
+
+CI performs two independent checks:
+
+1. check out V2 at the pinned commit, regenerate the golden file, and compare it semantically against the committed fixture;
+2. execute the same cases through V3 using `cmd/compat-harness` and fail on any contract-level mismatch.
+
+JSON object-key ordering is the only ignored representation detail. Values, array ordering, reasons, confidence values, structural patterns, safety flags, hashes, and configuration fields must match exactly.
+
+The harness currently freezes:
+
+- routing lane, risk, reasons, structural flag, and confidence;
+- retrieval intent, lexical/semantic/structural requirements, reasons, and structural patterns;
+- credential-free remote identity normalization;
+- repository ID hashing;
+- the complete V2 default control-plane configuration document.
+
+A deliberate incompatibility requires changing the cases/fixture provenance and documenting the decision rather than weakening comparison.
+
+Run locally:
+
+```bash
+go run ./cmd/compat-harness \
+  --cases compat/cases.json \
+  --fixtures compat/fixtures/v2-contracts.json \
+  --lock compat/v2.lock
 ```
 
-A fixture must never normalize away a safety-relevant difference.
+To refresh the oracle after intentionally advancing the V2 pin:
+
+```bash
+python tools/compat/capture_v2.py \
+  --v2-root /path/to/ai-workflow-control-plane-v2 \
+  --cases compat/cases.json \
+  --output compat/fixtures/v2-contracts.json \
+  --expected-commit "$(cat compat/v2.lock)"
+```
