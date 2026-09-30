@@ -60,3 +60,18 @@ func TestSelectorFixtureImprovesContextEfficiencyWithoutQualityRegression(t *tes
 		}
 	}
 }
+
+
+func TestSelectorFixtureUsesVariedFileCosts(t *testing.T) {
+	fixture, err := LoadFixture("../../benchmarks/retrieval/selector.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[int]struct{}{}
+	for _, tokens := range fixture.FileTokenEstimates {
+		seen[tokens] = struct{}{}
+	}
+	if len(seen) < 3 {
+		t.Fatalf("selector benchmark needs varied file costs, got %d distinct estimates", len(seen))
+	}
+}
