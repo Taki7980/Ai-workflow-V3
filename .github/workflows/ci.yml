@@ -79,3 +79,14 @@ jobs:
         run: python tools/compat/verify_fixture.py compat/fixtures/v2-contracts.json /tmp/v2-contracts.json
       - name: Execute V3 against V2 contracts
         run: go run ./cmd/compat-harness --cases compat/cases.json --fixtures compat/fixtures/v2-contracts.json --lock compat/v2.lock
+
+  parser-pilot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Run tagged parser pilot tests
+        run: go test -tags treesitter ./internal/indexer -count=1
