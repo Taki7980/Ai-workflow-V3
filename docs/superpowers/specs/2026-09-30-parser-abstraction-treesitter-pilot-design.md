@@ -4,7 +4,7 @@
 **Repository:** `Taki7980/Ai-workflow-V3`  
 **Base:** `a564a4c6a2670f77cfa1e234c2666881fd77032e`  
 **Tracker:** #2 — Stage 4  
-**Status:** approved roadmap stage, research refreshed 2026-09-30
+**Status:** implemented pilot; final validation in progress
 
 ## Goal
 
@@ -353,3 +353,30 @@ Stage 4 is merge-ready only if:
 7. binary-size and benchmark-memory/time impact are recorded;
 8. existing retrieval, compatibility, build and CodeQL gates remain green;
 9. no benchmark threshold or context ceiling is weakened.
+
+
+## Pilot measurements
+
+Measured on GitHub Actions Ubuntu 24.04, Go 1.27.1, at implementation head `234bb43224a0eff8510598f3f537a75f332d267c`.
+
+| Parser fixture | ns/op | B/op | allocs/op |
+| --- | ---: | ---: | ---: |
+| Python | 57,130 | 3,456 | 70 |
+| JavaScript | 60,407 | 3,376 | 65 |
+| TypeScript | 82,262 | 4,168 | 97 |
+| TSX | 38,828 | 3,160 | 65 |
+
+Binary-size measurement:
+
+- default binary: 5,928,264 bytes
+- `treesitter` tagged binary: 10,292,760 bytes
+- delta: +4,364,496 bytes (**+73.62%**)
+
+Observed portability:
+
+- Go 1.26.x: Ubuntu, Windows, macOS — pass
+- Go 1.27.x: Ubuntu, Windows, macOS — pass
+- `CGO_ENABLED=0 go test ./...` — pass
+- `CGO_ENABLED=0 go build ./cmd/ai-workflow` — pass
+
+The pilot therefore remains **opt-in**. The syntax-quality and multi-language benefits are useful, but the measured binary-size increase is too large to make Tree-sitter mandatory without a later packaging/runtime decision.
