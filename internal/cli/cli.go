@@ -20,6 +20,8 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
+// Run parses the CLI arguments, dispatches to the matching subcommand, and
+// returns the process exit code, writing output and errors to out and errOut.
 func Run(args []string, out, errOut io.Writer) int {
 	root, args, err := extractRoot(args)
 	if err != nil {
@@ -53,6 +55,8 @@ func Run(args []string, out, errOut io.Writer) int {
 	}
 }
 
+// extractRoot pulls the "--root" flag and its value out of args, returning
+// the resolved absolute root path along with the remaining arguments.
 func extractRoot(args []string) (string, []string, error) {
 	root := "."
 	out := []string{}
@@ -71,14 +75,20 @@ func extractRoot(args []string) (string, []string, error) {
 	return abs, out, err
 }
 
+// usage writes the top-level CLI usage summary to w.
 func usage(w io.Writer) {
 	fmt.Fprintln(w, "AI Workflow V3\n\nUsage: ai-workflow [--root PATH] <setup|route|repos|index|context|doctor|version>")
 }
+
+// printJSON marshals v as indented JSON and writes it to w, followed by a newline.
 func printJSON(w io.Writer, v any) {
 	b, _ := json.MarshalIndent(v, "", "  ")
 	fmt.Fprintln(w, string(b))
 }
 
+// setup implements the "setup" subcommand: it writes a default config if one
+// does not already exist, discovers repositories under root, saves the
+// workspace registry, and optionally builds indexes for the discovered repos.
 func setup(root string, args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
 	fs.SetOutput(errOut)
@@ -138,6 +148,8 @@ func setup(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
+// route implements the "route" subcommand: it classifies the given task and
+// prints the routing decision together with the resulting retrieval plan.
 func route(root string, args []string, out, errOut io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprintln(errOut, "route requires one task argument")
@@ -154,6 +166,8 @@ func route(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
+// repos implements the "repos" subcommand, supporting "list" to print the
+// current workspace registry and "refresh" to rediscover and re-save it.
 func repos(root string, args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
 		fmt.Fprintln(errOut, "repos requires list or refresh")
@@ -191,6 +205,8 @@ func repos(root string, args []string, out, errOut io.Writer) int {
 	}
 }
 
+// index implements the "index" subcommand: it builds indexes for every
+// repository in the workspace registry and prints a per-repository summary.
 func index(root string, args []string, out, errOut io.Writer) int {
 	reg, err := workspace.Load(root)
 	if err != nil {
@@ -210,6 +226,8 @@ func index(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
+// contextCmd implements the "context" subcommand: it loads the indexes for
+// all included repositories and prints the selected context hits for the query.
 func contextCmd(root string, args []string, out, errOut io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprintln(errOut, "context requires one query argument")
@@ -244,6 +262,8 @@ func contextCmd(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
+// estimateFileTokens estimates the token count for a file based on its byte
+// size, returning at least 1 for empty or unknown-size files.
 func estimateFileTokens(state indexer.FileState) int {
 	if state.Size <= 0 {
 		return 1
@@ -251,6 +271,9 @@ func estimateFileTokens(state indexer.FileState) int {
 	return int((state.Size + 3) / 4)
 }
 
+// selectContextHits searches the given indexes for query and, when the
+// selector is enabled, applies MMR-based selection to fit within the
+// configured token budget; otherwise it returns the raw search hits.
 func selectContextHits(query string, indexes map[string]indexer.Index, cfg config.Config) ([]indexer.Hit, error) {
 	if !cfg.Context.Selector.Enabled {
 		return indexer.Search(query, indexes, cfg.Context.MaxResultsPerSource), nil
@@ -289,6 +312,8 @@ func selectContextHits(query string, indexes map[string]indexer.Index, cfg confi
 	return out, nil
 }
 
+// doctorCmd implements the "doctor" subcommand: it runs workspace health
+// checks (optionally in strict mode) and prints the resulting report.
 func doctorCmd(root string, args []string, out, errOut io.Writer) int {
 	strict := false
 	for _, a := range args {

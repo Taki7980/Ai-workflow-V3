@@ -9,6 +9,7 @@ from pathlib import Path
 
 
 def load_cases(path: Path) -> dict:
+    """Load the compatibility cases JSON file and validate its schema version."""
     data = json.loads(path.read_text(encoding="utf-8"))
     if data.get("schema_version") != 1:
         raise SystemExit("unsupported cases schema")
@@ -16,6 +17,8 @@ def load_cases(path: Path) -> dict:
 
 
 def main() -> int:
+    """Run each compatibility case against the pinned AI Workflow V2 checkout
+    and write the frozen outputs to the fixture file."""
     parser = argparse.ArgumentParser(description="Capture frozen AI Workflow V2 compatibility contracts.")
     parser.add_argument("--v2-root", required=True)
     parser.add_argument("--cases", required=True)

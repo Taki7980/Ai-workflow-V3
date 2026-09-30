@@ -92,6 +92,9 @@ type Report struct {
 	Mismatches   []Mismatch `json:"mismatches"`
 }
 
+// Run loads the compatibility cases and V2 fixtures, verifies the fixture
+// source commit matches the pinned lock file, replays each case against the
+// current V3 implementation, and returns a report of any mismatches.
 func Run(casesPath, fixturePath, lockPath string) (Report, error) {
 	var cases Cases
 	if err := readJSON(casesPath, &cases); err != nil {
@@ -217,6 +220,7 @@ func Run(casesPath, fixturePath, lockPath string) (Report, error) {
 	return report, nil
 }
 
+// readJSON reads the file at path and decodes its JSON contents into out.
 func readJSON(path string, out any) error {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -228,6 +232,7 @@ func readJSON(path string, out any) error {
 	return nil
 }
 
+// canonicalJSON marshals v to a JSON string for stable, order-independent comparison.
 func canonicalJSON(v any) (string, error) {
 	b, err := json.Marshal(v)
 	if err != nil {

@@ -8,10 +8,13 @@ from pathlib import Path
 
 
 def canonical(value: object) -> str:
+    """Serialize value to a stable, sorted-key JSON string for diffing."""
     return json.dumps(value, indent=2, sort_keys=True) + "\n"
 
 
 def main() -> int:
+    """Compare two JSON fixture files for semantic equality, printing a
+    unified diff and returning a non-zero exit code if they differ."""
     parser = argparse.ArgumentParser(
         description="Compare compatibility fixtures semantically while ignoring JSON object-key order."
     )

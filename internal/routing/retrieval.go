@@ -15,6 +15,8 @@ var (
 	semanticSignal   = regexp.MustCompile(`(?i)\b(where do we|how do we|how does|responsible for|handles?|prevents?|ensures?|implements?|logic for|flow for|behavior|behaviour|concept|meaning)\b`)
 )
 
+// PlanRetrieval builds a retrieval plan for query given its routing
+// decision, without any pre-resolved symbol or endpoint anchors.
 func PlanRetrieval(query string, decision model.RouteDecision) model.RetrievalPlan {
 	return PlanRetrievalWithAnchors(query, decision, "", "")
 }
@@ -59,6 +61,8 @@ func PlanRetrievalWithAnchors(query string, decision model.RouteDecision, symbol
 	return model.RetrievalPlan{Intent: model.RetrievalExact, UseLexical: true, Reason: "bounded deterministic default"}
 }
 
+// hasInteriorUpper reports whether s contains an uppercase letter after its
+// first character, a common signal for identifiers such as camelCase names.
 func hasInteriorUpper(s string) bool {
 	for i, r := range s {
 		if i > 0 && r >= 'A' && r <= 'Z' {
@@ -68,6 +72,8 @@ func hasInteriorUpper(s string) bool {
 	return false
 }
 
+// structuralRequirements returns the names of structural retrieval patterns
+// (e.g. "impact", "callers_of") whose trigger phrases appear in s.
 func structuralRequirements(s string) []string {
 	checks := []struct{ name, rx string }{
 		{"impact", `(?i)\b(impact|blast\s+radius|what\s+breaks|affected)\b`},

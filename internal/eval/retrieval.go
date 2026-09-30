@@ -99,6 +99,8 @@ type Report struct {
 	Cases         []CaseResult `json:"cases"`
 }
 
+// LoadFixture reads and decodes the retrieval benchmark fixture at path,
+// validating it before returning.
 func LoadFixture(path string) (Fixture, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -114,6 +116,9 @@ func LoadFixture(path string) (Fixture, error) {
 	return f, nil
 }
 
+// Validate checks that the fixture's schema version, required fields, cases,
+// and optional selector settings are well-formed, returning an error describing
+// the first problem found.
 func (f Fixture) Validate() error {
 	if f.SchemaVersion != 1 {
 		return fmt.Errorf("unsupported benchmark schema version %d", f.SchemaVersion)
@@ -162,6 +167,10 @@ func (f Fixture) Validate() error {
 	return nil
 }
 
+// Run evaluates the retrieval fixture, computing raw retrieval metrics and,
+// when a selector is configured, selector-adjusted metrics that must not
+// regress recall or MRR relative to the raw results. It returns a report
+// describing the metrics, any cases, and any threshold violations.
 func Run(f Fixture) Report {
 	symbols := make([]indexer.Symbol, 0, len(f.Symbols))
 	for _, s := range f.Symbols {
@@ -230,6 +239,9 @@ func Run(f Fixture) Report {
 	}
 }
 
+// evaluateCases runs every case in the fixture against indexes, optionally
+// applying MMR-based selection, and returns the aggregated metrics along with
+// per-case results.
 func evaluateCases(f Fixture, indexes map[string]indexer.Index, selector *SelectorFixture) (Metrics, []CaseResult, error) {
 	var metrics Metrics
 	results := make([]CaseResult, 0, len(f.Cases))
@@ -324,6 +336,8 @@ func evaluateCases(f Fixture, indexes map[string]indexer.Index, selector *Select
 	return metrics, results, nil
 }
 
+// Violations compares metrics m against the thresholds and returns a sorted
+// list of human-readable descriptions for every threshold that is violated.
 func (t Thresholds) Violations(m Metrics) []string {
 	var out []string
 	minCheck := func(name string, got, want float64) {
@@ -347,6 +361,8 @@ func (t Thresholds) Violations(m Metrics) []string {
 	return out
 }
 
+// uniquePaths returns up to limit distinct file paths from hits, preserving
+// their relative order and skipping duplicates.
 func uniquePaths(hits []indexer.Hit, limit int) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, limit)
@@ -363,6 +379,7 @@ func uniquePaths(hits []indexer.Hit, limit int) []string {
 	return out
 }
 
+// stringSet builds a set from the given items for O(1) membership checks.
 func stringSet(items []string) map[string]struct{} {
 	out := make(map[string]struct{}, len(items))
 	for _, item := range items {
@@ -371,6 +388,8 @@ func stringSet(items []string) map[string]struct{} {
 	return out
 }
 
+// recall returns the fraction of gold paths found among the first k
+// (deduplicated) retrieved paths, or 0 if gold is empty.
 func recall(paths []string, gold map[string]struct{}, k int) float64 {
 	if len(gold) == 0 {
 		return 0
@@ -392,6 +411,8 @@ func recall(paths []string, gold map[string]struct{}, k int) float64 {
 	return float64(found) / float64(len(gold))
 }
 
+// reciprocalRank returns 1 divided by the rank of the first path in paths
+// that belongs to gold, or 0 if no such path exists.
 func reciprocalRank(paths []string, gold map[string]struct{}) float64 {
 	for i, path := range paths {
 		if _, ok := gold[path]; ok {
@@ -401,6 +422,7 @@ func reciprocalRank(paths []string, gold map[string]struct{}) float64 {
 	return 0
 }
 
+// precision returns the fraction of paths that belong to gold, or 0 if paths is empty.
 func precision(paths []string, gold map[string]struct{}) float64 {
 	if len(paths) == 0 {
 		return 0
@@ -414,6 +436,7 @@ func precision(paths []string, gold map[string]struct{}) float64 {
 	return float64(found) / float64(len(paths))
 }
 
+// f1 returns the harmonic mean of precision and recall, or 0 if both are zero.
 func f1(precision, recall float64) float64 {
 	if precision+recall == 0 {
 		return 0
@@ -421,6 +444,7 @@ func f1(precision, recall float64) float64 {
 	return 2 * precision * recall / (precision + recall)
 }
 
+// retrievedTokenEstimate sums the per-file token estimates for the given paths.
 func retrievedTokenEstimate(paths []string, estimates map[string]int) int {
 	total := 0
 	for _, path := range paths {
@@ -429,6 +453,8 @@ func retrievedTokenEstimate(paths []string, estimates map[string]int) int {
 	return total
 }
 
+// contextYield returns the fraction of retrieved tokens that come from gold
+// paths, or 0 if no tokens were retrieved.
 func contextYield(paths []string, gold map[string]struct{}, estimates map[string]int) float64 {
 	total := 0
 	relevant := 0
@@ -445,6 +471,8 @@ func contextYield(paths []string, gold map[string]struct{}, estimates map[string
 	return float64(relevant) / float64(total)
 }
 
+// closeEnough reports whether a and b are equal within a small epsilon,
+// guarding against floating-point rounding error.
 func closeEnough(a, b float64) bool {
 	return math.Abs(a-b) < 1e-9
 }

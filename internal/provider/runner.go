@@ -49,6 +49,7 @@ type Result struct {
 	DurationMS int64  `json:"duration_ms"`
 }
 
+// validate checks that the provider spec has a non-blank name and command.
 func (s Spec) validate() error {
 	if strings.TrimSpace(s.Name) == "" {
 		return errors.New("provider name is blank")
@@ -59,6 +60,9 @@ func (s Spec) validate() error {
 	return nil
 }
 
+// Run executes the external provider described by s with req encoded as its
+// stdin payload, applying default timeouts and output limits, and decodes
+// the provider's stdout into a Result.
 func Run(parent context.Context, s Spec, req Request) (Result, error) {
 	if err := s.validate(); err != nil {
 		return Result{}, err
@@ -101,6 +105,8 @@ func Run(parent context.Context, s Spec, req Request) (Result, error) {
 	return Result{Items: items, Stderr: stderr.String(), DurationMS: time.Since(start).Milliseconds()}, nil
 }
 
+// buildEnv constructs a restricted environment for the provider subprocess,
+// including a fixed set of safe variables plus any names in allow.
 func buildEnv(allow []string) []string {
 	safe := map[string]bool{
 		"PATH": true, "PATHEXT": true, "SYSTEMROOT": true, "SYSTEMDRIVE": true,
@@ -121,6 +127,8 @@ func buildEnv(allow []string) []string {
 	return out
 }
 
+// decodeItems decodes provider output as either a bare JSON array of items
+// or an envelope object of the form {"items": [...]}.
 func decodeItems(b []byte) ([]Item, error) {
 	var envelope struct {
 		Items []Item `json:"items"`
@@ -141,6 +149,8 @@ type limitedBuffer struct {
 	overflow bool
 }
 
+// Write appends p to the buffer up to its configured limit N, discarding any
+// bytes beyond that limit and marking the buffer as overflowed.
 func (l *limitedBuffer) Write(p []byte) (int, error) {
 	if l.N <= 0 {
 		return len(p), nil
@@ -158,7 +168,11 @@ func (l *limitedBuffer) Write(p []byte) (int, error) {
 	_, err := l.buf.Write(write)
 	return len(p), err
 }
-func (l *limitedBuffer) Bytes() []byte  { return l.buf.Bytes() }
+
+// Bytes returns the buffered content collected so far.
+func (l *limitedBuffer) Bytes() []byte { return l.buf.Bytes() }
+
+// String returns the buffered content collected so far as a string.
 func (l *limitedBuffer) String() string { return l.buf.String() }
 
 var _ io.Writer = (*limitedBuffer)(nil)

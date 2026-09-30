@@ -38,6 +38,11 @@ type selectorCandidate[T any] struct {
 	tokenSet map[string]struct{}
 }
 
+// SelectMMR deduplicates candidates by key, then greedily selects items
+// within options.MaxCandidates and options.MaxTokens using Maximal Marginal
+// Relevance to balance relevance against redundancy. Required candidates are
+// always included first, and when options.MandatoryRequired is set, an
+// error is returned if their combined token cost exceeds the budget.
 func SelectMMR[T any](candidates []Candidate[T], options SelectorOptions) (Selection[T], error) {
 	if options.MaxTokens <= 0 {
 		return Selection[T]{}, fmt.Errorf("max tokens must be positive")
@@ -212,6 +217,7 @@ func SelectMMR[T any](candidates []Candidate[T], options SelectorOptions) (Selec
 	return result, nil
 }
 
+// tokenSet tokenizes text and returns the resulting tokens as a set.
 func tokenSet(text string) map[string]struct{} {
 	out := map[string]struct{}{}
 	for _, token := range Tokenize(text) {
