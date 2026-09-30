@@ -45,6 +45,8 @@ jobs:
           cache: true
       - name: Enforce frozen retrieval baseline
         run: go run ./cmd/retrieval-bench --fixture benchmarks/retrieval/baseline.json --enforce
+      - name: Enforce MMR selector benchmark
+        run: go run ./cmd/retrieval-bench --fixture benchmarks/retrieval/selector.json --enforce
 
   compatibility:
     runs-on: ubuntu-latest

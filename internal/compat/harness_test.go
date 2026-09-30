@@ -10,4 +10,7 @@ func TestFrozenV2Contracts(t *testing.T) {
 	if !report.OK {
 		t.Fatalf("V2/V3 compatibility drift: %#v", report.Mismatches)
 	}
+	if report.Cases != 29 {
+		t.Fatalf("compatibility cases=%d want=29 (including MMR)", report.Cases)
+	}
 }

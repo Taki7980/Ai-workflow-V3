@@ -51,12 +51,20 @@ type AdaptiveBudget struct {
 	MinimumChars            int     `json:"minimum_chars"`
 }
 
+type Selector struct {
+	Enabled                     bool    `json:"enabled"`
+	TightBudgetFraction         float64 `json:"tight_budget_fraction"`
+	MandatoryStructuralEvidence bool    `json:"mandatory_structural_evidence"`
+	MaxSelectorCandidates       int     `json:"max_selector_candidates"`
+}
+
 type Context struct {
 	MaxResultsPerSource int                `json:"max_results_per_source"`
 	SourceShares        map[string]float64 `json:"source_shares"`
 	CRG                 CRG                `json:"crg"`
 	Sufficiency         Sufficiency        `json:"sufficiency"`
 	AdaptiveBudget      AdaptiveBudget     `json:"adaptive_budget"`
+	Selector            Selector           `json:"selector"`
 }
 
 type Discovery struct {
@@ -124,6 +132,7 @@ func Default() Config {
 			CRG:                 CRG{Mode: "auto", MinLane: "full", StructuralKeywords: []string{"caller", "callee", "dependency", "dependents", "impact", "blast radius", "flow", "architecture", "tests for", "refactor", "what breaks", "affected"}, MinSourceFiles: 250, ChangedThreshold: 3},
 			Sufficiency:         Sufficiency{Threshold: .72},
 			AdaptiveBudget:      AdaptiveBudget{Enabled: true, HighSufficiencyFraction: .45, MediumFraction: .70, MinimumChars: 900},
+			Selector:            Selector{Enabled: true, TightBudgetFraction: .30, MandatoryStructuralEvidence: true, MaxSelectorCandidates: 200},
 		},
 		Workspace: Workspace{Roots: []string{}, MaxRoots: 4, Registry: "ai-workspace/config/repositories.json", RepositoryGraph: "ai-workspace/config/repository-graph.json", Discovery: Discovery{MaxDepth: 8, RequireAcceptance: false, AutoIncludeOnSetup: true}},
 		Execution: Execution{PreferSuperpowersForFull: true, NativeFallback: true},
@@ -167,6 +176,12 @@ func (c Config) Validate() error {
 	if c.Context.Sufficiency.Threshold < 0 || c.Context.Sufficiency.Threshold > 1 {
 		return fmt.Errorf("context.sufficiency.threshold must be 0..1")
 	}
+	if c.Context.Selector.TightBudgetFraction <= 0 || c.Context.Selector.TightBudgetFraction > 1 {
+		return fmt.Errorf("context.selector.tight_budget_fraction must be >0 and <=1")
+	}
+	if c.Context.Selector.MaxSelectorCandidates <= 0 {
+		return fmt.Errorf("context.selector.max_selector_candidates must be positive")
+	}
 	if c.Budgets.Answer.EstimatedTokens <= 0 || c.Budgets.Small.EstimatedTokens <= 0 || c.Budgets.Full.EstimatedTokens <= 0 {
 		return fmt.Errorf("budgets must be positive")
 	}
@@ -190,10 +205,6 @@ func DefaultDocument() map[string]any {
 	}
 	ctx["external_retrievers"] = []any{}
 	ctx["selective_retrieval"] = map[string]any{"enabled": true, "minimum_coverage": 0.15}
-	ctx["selector"] = map[string]any{
-		"enabled": true, "tight_budget_fraction": 0.3,
-		"mandatory_structural_evidence": true, "max_selector_candidates": 200,
-	}
 	ctx["telemetry"] = map[string]any{"mode": "mutations"}
 	ctx["learning"] = map[string]any{
 		"mode": "off", "kill_switch": false, "exploration_probability": 0.05,

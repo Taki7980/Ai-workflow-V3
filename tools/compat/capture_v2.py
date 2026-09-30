@@ -39,6 +39,7 @@ def main() -> int:
     from ai_workflow.models import Lane, Risk, RouteDecision
     from ai_workflow.repository_registry import remote_identity, repository_id
     from ai_workflow.retrieval_policy import classify_retrieval_intent
+    from ai_workflow.math_retrieval import BM25Scorer, maximal_marginal_relevance, tokenize
 
     outputs = {
         "schema_version": 1,
@@ -50,6 +51,7 @@ def main() -> int:
         "retrieval": {},
         "remote_identity": {},
         "repository_id": {},
+        "mmr": {},
         "config": default_config() if cases.get("config_snapshot") else None,
     }
 
@@ -90,6 +92,20 @@ def main() -> int:
     for case in cases.get("repository_id", []):
         outputs["repository_id"][case["name"]] = repository_id(
             case["relative_path"], case.get("remote_identity")
+        )
+
+    for case in cases.get("mmr", []):
+        scorer = BM25Scorer()
+        texts = [candidate["text"] for candidate in case["candidates"]]
+        keys = [candidate["key"] for candidate in case["candidates"]]
+        scores = [float(candidate["score"]) for candidate in case["candidates"]]
+        scorer.fit(texts, keys)
+        outputs["mmr"][case["name"]] = maximal_marginal_relevance(
+            tokenize(case["query"]),
+            scorer.docs,
+            scores,
+            lambda_param=float(case["lambda"]),
+            max_items=int(case["max_items"]),
         )
 
     Path(args.output).write_text(

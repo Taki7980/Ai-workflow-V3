@@ -187,5 +187,30 @@
       "remote_identity": "example.com/Team/Repo"
     }
   ],
-  "config_snapshot": true
+  "config_snapshot": true,
+  "mmr": [
+    {
+      "name": "redundant_payment_context",
+      "query": "payment retry policy",
+      "lambda": 0.7,
+      "max_items": 3,
+      "candidates": [
+        {
+          "key": "service",
+          "text": "payment retry duplicate charge handler",
+          "score": 1
+        },
+        {
+          "key": "service-helper",
+          "text": "payment retry duplicate charge helper",
+          "score": 0.95
+        },
+        {
+          "key": "test",
+          "text": "test process payment retry behavior",
+          "score": 0.8
+        }
+      ]
+    }
+  ]
 }

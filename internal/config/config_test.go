@@ -33,3 +33,51 @@ func TestLoadToleratesAdditiveV2Fields(t *testing.T) {
 		t.Fatalf("additive field should remain migration-compatible: %v", err)
 	}
 }
+
+func TestDefaultSelectorMatchesV2Contract(t *testing.T) {
+	cfg := Default()
+	got := cfg.Context.Selector
+	if !got.Enabled {
+		t.Fatal("selector must default enabled")
+	}
+	if got.TightBudgetFraction != 0.3 {
+		t.Fatalf("tight_budget_fraction=%v want=0.3", got.TightBudgetFraction)
+	}
+	if !got.MandatoryStructuralEvidence {
+		t.Fatal("mandatory_structural_evidence must default true")
+	}
+	if got.MaxSelectorCandidates != 200 {
+		t.Fatalf("max_selector_candidates=%d want=200", got.MaxSelectorCandidates)
+	}
+
+	doc := DefaultDocument()
+	ctx := doc["context"].(map[string]any)
+	raw, ok := ctx["selector"].(map[string]any)
+	if !ok {
+		t.Fatalf("context.selector has unexpected type %T", ctx["selector"])
+	}
+	if raw["enabled"] != true ||
+		raw["tight_budget_fraction"] != 0.3 ||
+		raw["mandatory_structural_evidence"] != true ||
+		raw["max_selector_candidates"] != float64(200) {
+		t.Fatalf("selector document=%#v", raw)
+	}
+}
+
+func TestSelectorValidationRejectsInvalidTightBudgetFraction(t *testing.T) {
+	for _, value := range []float64{0, -0.1, 1.1} {
+		cfg := Default()
+		cfg.Context.Selector.TightBudgetFraction = value
+		if err := cfg.Validate(); err == nil {
+			t.Fatalf("fraction=%v expected validation error", value)
+		}
+	}
+}
+
+func TestSelectorValidationRejectsInvalidCandidateCap(t *testing.T) {
+	cfg := Default()
+	cfg.Context.Selector.MaxSelectorCandidates = 0
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected max_selector_candidates validation error")
+	}
+}

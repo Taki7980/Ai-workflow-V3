@@ -413,5 +413,12 @@
       "full_medium": "standard",
       "full_high": "capable"
     }
+  },
+  "mmr": {
+    "redundant_payment_context": [
+      "service",
+      "test",
+      "service-helper"
+    ]
   }
 }
