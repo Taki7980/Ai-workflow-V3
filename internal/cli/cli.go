@@ -267,7 +267,7 @@ func selectContextHits(query string, indexes map[string]indexer.Index, cfg confi
 		state := idx.Files[hit.Path]
 		candidates = append(candidates, retrieval.Candidate[indexer.Hit]{
 			Key:             hit.Repository + "\x00" + hit.Path,
-			Text:            hit.Symbol + " " + hit.Kind + " " + hit.Path,
+			Text:            hit.Symbol + " " + hit.Kind,
 			Value:           hit,
 			Relevance:       hit.Score,
 			EstimatedTokens: estimateFileTokens(state),

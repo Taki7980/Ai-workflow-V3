@@ -247,7 +247,7 @@ func evaluateCases(f Fixture, indexes map[string]indexer.Index, selector *Select
 			for _, hit := range hits {
 				candidates = append(candidates, retrieval.Candidate[indexer.Hit]{
 					Key:             hit.Repository + "\x00" + hit.Path,
-					Text:            hit.Symbol + " " + hit.Kind + " " + hit.Path,
+					Text:            hit.Symbol + " " + hit.Kind,
 					Value:           hit,
 					Relevance:       hit.Score,
 					EstimatedTokens: f.FileTokenEstimates[hit.Path],
