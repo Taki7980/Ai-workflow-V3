@@ -245,8 +245,9 @@ Modify `ai-workflow context` so it:
 3. deduplicates file candidates by repository + path;
 4. builds selector candidates using:
    - key = repository + NUL + path;
-   - text = symbol name + kind + path;
-   - relevance = BM25 hit score;
+   - diversity text = symbol name + kind;
+   - relevance = BM25 hit score (raw BM25 still includes path);
+   - dedupe key = repository + path;
    - estimated tokens from indexed file size;
    - required = false for this PR;
 5. selects under the lane-independent context budget chosen for the read-only `context` command.
@@ -444,3 +445,17 @@ This stage succeeds only if V3 gains a deterministic, reusable context selector 
 - materially improves context efficiency on the selector benchmark;
 - does not regress existing retrieval quality gates;
 - keeps all cross-platform, compatibility, and security checks green.
+
+
+## 22. Implementation Ruling — exclude paths from MMR novelty text
+
+During the TDD benchmark run, the first selector implementation used `symbol + kind + path` as the MMR diversity text. The selector then over-penalized a correct `service.go` + `service_test.go` pair because their paths share payment/service/test terms, and selected a less relevant helper test instead. This reduced selector Recall@K from 1.0 to 0.928571 while raw BM25 Recall@K remained 1.0.
+
+The ruling is:
+
+- keep file paths in BM25 relevance, where they are useful lexical evidence;
+- keep repository + path as the deterministic dedupe key;
+- exclude file paths from MMR novelty similarity;
+- use `symbol + kind` for MMR token-set similarity.
+
+This restored the multi-gold case without increasing the token budget and is protected by the selector benchmark. The cost if this ruling is wrong is reduced diversity quality for cases where path-only similarity is genuinely informative; future benchmark expansion should measure that before changing it.
