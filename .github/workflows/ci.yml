@@ -101,7 +101,7 @@ jobs:
       - name: Vet tagged parser pilot
         run: go vet -tags treesitter ./internal/indexer
       - name: Measure parser pilot performance
-        run: go test -tags treesitter ./internal/indexer -run '^ -bench BenchmarkParserPilot -benchmem -benchtime=50x
+        run: go test -tags treesitter ./internal/indexer -run '^$' -bench BenchmarkParserPilot -benchmem -benchtime=50x
       - name: Measure parser pilot binary size
         shell: bash
         run: |
