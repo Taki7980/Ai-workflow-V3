@@ -13,6 +13,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/doctor"
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
+	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/routing"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 	"github.com/Taki7980/ai-workflow-v3/internal/version"
@@ -214,6 +215,11 @@ func contextCmd(root string, args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "context requires one query argument")
 		return 2
 	}
+	cfg, err := config.Load(root)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
 	reg, err := workspace.Load(root)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -229,8 +235,58 @@ func contextCmd(root string, args []string, out, errOut io.Writer) int {
 			indexes[repo.RelativePath] = idx
 		}
 	}
-	printJSON(out, indexer.Search(args[0], indexes, 6))
+	hits, err := selectContextHits(args[0], indexes, cfg)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	printJSON(out, hits)
 	return 0
+}
+
+func estimateFileTokens(state indexer.FileState) int {
+	if state.Size <= 0 {
+		return 1
+	}
+	return int((state.Size + 3) / 4)
+}
+
+func selectContextHits(query string, indexes map[string]indexer.Index, cfg config.Config) ([]indexer.Hit, error) {
+	if !cfg.Context.Selector.Enabled {
+		return indexer.Search(query, indexes, cfg.Context.MaxResultsPerSource), nil
+	}
+
+	limit := cfg.Context.Selector.MaxSelectorCandidates
+	hits := indexer.Search(query, indexes, limit)
+	candidates := make([]retrieval.Candidate[indexer.Hit], 0, len(hits))
+	for _, hit := range hits {
+		idx, ok := indexes[hit.Repository]
+		if !ok {
+			continue
+		}
+		state := idx.Files[hit.Path]
+		candidates = append(candidates, retrieval.Candidate[indexer.Hit]{
+			Key:             hit.Repository + "\x00" + hit.Path,
+			Text:            hit.Symbol + " " + hit.Kind + " " + hit.Path,
+			Value:           hit,
+			Relevance:       hit.Score,
+			EstimatedTokens: estimateFileTokens(state),
+		})
+	}
+	selected, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{
+		MaxTokens:         cfg.Budgets.Answer.EstimatedTokens,
+		MaxCandidates:     limit,
+		Lambda:            0.70,
+		MandatoryRequired: cfg.Context.Selector.MandatoryStructuralEvidence,
+	})
+	if err != nil {
+		return nil, err
+	}
+	out := make([]indexer.Hit, 0, len(selected.Items))
+	for _, item := range selected.Items {
+		out = append(out, item.Value)
+	}
+	return out, nil
 }
 
 func doctorCmd(root string, args []string, out, errOut io.Writer) int {

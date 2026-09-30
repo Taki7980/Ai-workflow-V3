@@ -27,6 +27,14 @@ Enforce the frozen baseline thresholds:
 go run ./cmd/retrieval-bench --fixture benchmarks/retrieval/baseline.json --enforce
 ```
 
+Evaluate the deterministic MMR selector against the raw lexical candidate set:
+
+```bash
+go run ./cmd/retrieval-bench --fixture benchmarks/retrieval/selector.json --enforce
+```
+
+Selector fixtures report the selected metrics in `metrics` and retain the pre-selection lexical metrics in `raw_metrics`. The gate requires no Recall@K or MRR regression, at least 0.10 absolute context-yield improvement, and selected context cost at no more than 75% of the raw candidate cost for the bundled selector fixture.
+
 The current fixture intentionally records a known weakness: lexical retrieval returns a false positive for the wrong-repository payment/UI query. Future selective/semantic retrieval work should lower that rate rather than relaxing the threshold.
 
 ## Benchmark policy

@@ -8,6 +8,7 @@ import (
 	"sort"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
+	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 )
 
 type Fixture struct {
@@ -18,7 +19,9 @@ type Fixture struct {
 	Symbols            []SymbolFixture   `json:"symbols"`
 	FileTokenEstimates map[string]int    `json:"file_token_estimates"`
 	Cases              []RetrievalCase   `json:"cases"`
-	Thresholds         Thresholds        `json:"thresholds"`
+	Thresholds           Thresholds           `json:"thresholds"`
+	Selector             *SelectorFixture     `json:"selector,omitempty"`
+	ComparisonThresholds ComparisonThresholds `json:"comparison_thresholds,omitempty"`
 }
 
 type SymbolFixture struct {
@@ -33,6 +36,17 @@ type RetrievalCase struct {
 	TaskType  string   `json:"task_type"`
 	Query     string   `json:"query"`
 	GoldPaths []string `json:"gold_paths"`
+}
+
+type SelectorFixture struct {
+	Lambda        float64 `json:"lambda"`
+	MaxTokens     int     `json:"max_tokens"`
+	MaxCandidates int     `json:"max_candidates"`
+}
+
+type ComparisonThresholds struct {
+	MinContextYieldImprovement float64 `json:"min_context_yield_improvement"`
+	MaxSelectedTokenRatio      float64 `json:"max_selected_token_ratio"`
 }
 
 type Thresholds struct {
@@ -80,6 +94,7 @@ type Report struct {
 	K             int          `json:"k"`
 	Pass          bool         `json:"pass"`
 	Metrics       Metrics      `json:"metrics"`
+	RawMetrics    *Metrics     `json:"raw_metrics,omitempty"`
 	Violations    []string     `json:"violations"`
 	Cases         []CaseResult `json:"cases"`
 }
@@ -130,6 +145,20 @@ func (f Fixture) Validate() error {
 		}
 		seen[c.Name] = struct{}{}
 	}
+	if f.Selector != nil {
+		if f.Selector.Lambda < 0 || f.Selector.Lambda > 1 {
+			return fmt.Errorf("selector lambda must be 0..1")
+		}
+		if f.Selector.MaxTokens <= 0 || f.Selector.MaxCandidates <= 0 {
+			return fmt.Errorf("selector token and candidate limits must be positive")
+		}
+		if f.ComparisonThresholds.MinContextYieldImprovement < 0 {
+			return fmt.Errorf("minimum context-yield improvement must be non-negative")
+		}
+		if f.ComparisonThresholds.MaxSelectedTokenRatio <= 0 || f.ComparisonThresholds.MaxSelectedTokenRatio > 1 {
+			return fmt.Errorf("max selected-token ratio must be >0 and <=1")
+		}
+	}
 	return nil
 }
 
@@ -142,21 +171,105 @@ func Run(f Fixture) Report {
 		f.Repository: {Version: 1, Repository: f.Repository, Symbols: symbols},
 	}
 
-	report := Report{
+	rawMetrics, rawCases, err := evaluateCases(f, indexes, nil)
+	if err != nil {
+		return Report{SchemaVersion: 1, Fixture: f.Name, K: f.K, Pass: false, Violations: []string{err.Error()}}
+	}
+	if f.Selector == nil {
+		violations := f.Thresholds.Violations(rawMetrics)
+		return Report{
+			SchemaVersion: 1,
+			Fixture:       f.Name,
+			K:             f.K,
+			Pass:          len(violations) == 0,
+			Metrics:       rawMetrics,
+			Violations:    violations,
+			Cases:         rawCases,
+		}
+	}
+
+	selectedMetrics, selectedCases, err := evaluateCases(f, indexes, f.Selector)
+	if err != nil {
+		return Report{SchemaVersion: 1, Fixture: f.Name, K: f.K, Pass: false, RawMetrics: &rawMetrics, Violations: []string{err.Error()}}
+	}
+	violations := f.Thresholds.Violations(selectedMetrics)
+	if selectedMetrics.RecallAtK+1e-12 < rawMetrics.RecallAtK {
+		violations = append(violations, fmt.Sprintf("recall_at_k %.6f regressed from raw %.6f", selectedMetrics.RecallAtK, rawMetrics.RecallAtK))
+	}
+	if selectedMetrics.MRR+1e-12 < rawMetrics.MRR {
+		violations = append(violations, fmt.Sprintf("mrr %.6f regressed from raw %.6f", selectedMetrics.MRR, rawMetrics.MRR))
+	}
+	improvement := selectedMetrics.ContextYield - rawMetrics.ContextYield
+	if improvement+1e-12 < f.ComparisonThresholds.MinContextYieldImprovement {
+		violations = append(violations, fmt.Sprintf(
+			"context_yield improvement %.6f < minimum %.6f",
+			improvement,
+			f.ComparisonThresholds.MinContextYieldImprovement,
+		))
+	}
+	if rawMetrics.AvgRetrievedTokens > 0 {
+		ratio := selectedMetrics.AvgRetrievedTokens / rawMetrics.AvgRetrievedTokens
+		if ratio-1e-12 > f.ComparisonThresholds.MaxSelectedTokenRatio {
+			violations = append(violations, fmt.Sprintf(
+				"selected/raw token ratio %.6f > maximum %.6f",
+				ratio,
+				f.ComparisonThresholds.MaxSelectedTokenRatio,
+			))
+		}
+	}
+	sort.Strings(violations)
+	return Report{
 		SchemaVersion: 1,
 		Fixture:       f.Name,
 		K:             f.K,
-		Pass:          true,
-		Violations:    []string{},
-		Cases:         []CaseResult{},
+		Pass:          len(violations) == 0,
+		Metrics:       selectedMetrics,
+		RawMetrics:    &rawMetrics,
+		Violations:    violations,
+		Cases:         selectedCases,
 	}
+}
 
+func evaluateCases(f Fixture, indexes map[string]indexer.Index, selector *SelectorFixture) (Metrics, []CaseResult, error) {
+	var metrics Metrics
+	results := make([]CaseResult, 0, len(f.Cases))
 	var sumRecall1, sumRecallK, sumRR, sumPrecision, sumF1, sumYield, sumTokens float64
 	var noGoldFalsePositives int
 
 	for _, c := range f.Cases {
-		hits := indexer.Search(c.Query, indexes, f.K)
-		paths := uniquePaths(hits, f.K)
+		var paths []string
+		if selector == nil {
+			hits := indexer.Search(c.Query, indexes, f.K)
+			paths = uniquePaths(hits, f.K)
+		} else {
+			hits := indexer.Search(c.Query, indexes, selector.MaxCandidates)
+			candidates := make([]retrieval.Candidate[indexer.Hit], 0, len(hits))
+			for _, hit := range hits {
+				candidates = append(candidates, retrieval.Candidate[indexer.Hit]{
+					Key:             hit.Repository + "\x00" + hit.Path,
+					Text:            hit.Symbol + " " + hit.Kind + " " + hit.Path,
+					Value:           hit,
+					Relevance:       hit.Score,
+					EstimatedTokens: f.FileTokenEstimates[hit.Path],
+				})
+			}
+			selected, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{
+				MaxTokens:     selector.MaxTokens,
+				MaxCandidates: selector.MaxCandidates,
+				Lambda:        selector.Lambda,
+			})
+			if err != nil {
+				return Metrics{}, nil, fmt.Errorf("case %s selector: %w", c.Name, err)
+			}
+			if selected.UsedTokens > selector.MaxTokens {
+				return Metrics{}, nil, fmt.Errorf("case %s exceeded selector budget", c.Name)
+			}
+			paths = make([]string, 0, len(selected.Items))
+			for _, item := range selected.Items {
+				paths = append(paths, item.Value.Path)
+			}
+		}
+
 		tokens := retrievedTokenEstimate(paths, f.FileTokenEstimates)
 		result := CaseResult{
 			Name:            c.Name,
@@ -168,16 +281,16 @@ func Run(f Fixture) Report {
 		}
 
 		if len(c.GoldPaths) == 0 {
-			report.Metrics.NoGoldCases++
+			metrics.NoGoldCases++
 			result.FalsePositive = len(paths) > 0
 			if result.FalsePositive {
 				noGoldFalsePositives++
 			}
-			report.Cases = append(report.Cases, result)
+			results = append(results, result)
 			continue
 		}
 
-		report.Metrics.PositiveCases++
+		metrics.PositiveCases++
 		gold := stringSet(c.GoldPaths)
 		result.RecallAt1 = recall(paths, gold, 1)
 		result.RecallAtK = recall(paths, gold, f.K)
@@ -193,25 +306,22 @@ func Run(f Fixture) Report {
 		sumF1 += result.FileF1
 		sumYield += result.ContextYield
 		sumTokens += float64(tokens)
-		report.Cases = append(report.Cases, result)
+		results = append(results, result)
 	}
 
-	if n := float64(report.Metrics.PositiveCases); n > 0 {
-		report.Metrics.RecallAt1 = sumRecall1 / n
-		report.Metrics.RecallAtK = sumRecallK / n
-		report.Metrics.MRR = sumRR / n
-		report.Metrics.FilePrecisionAtK = sumPrecision / n
-		report.Metrics.FileF1AtK = sumF1 / n
-		report.Metrics.ContextYield = sumYield / n
-		report.Metrics.AvgRetrievedTokens = sumTokens / n
+	if n := float64(metrics.PositiveCases); n > 0 {
+		metrics.RecallAt1 = sumRecall1 / n
+		metrics.RecallAtK = sumRecallK / n
+		metrics.MRR = sumRR / n
+		metrics.FilePrecisionAtK = sumPrecision / n
+		metrics.FileF1AtK = sumF1 / n
+		metrics.ContextYield = sumYield / n
+		metrics.AvgRetrievedTokens = sumTokens / n
 	}
-	if n := float64(report.Metrics.NoGoldCases); n > 0 {
-		report.Metrics.NoGoldFalsePositiveRate = float64(noGoldFalsePositives) / n
+	if n := float64(metrics.NoGoldCases); n > 0 {
+		metrics.NoGoldFalsePositiveRate = float64(noGoldFalsePositives) / n
 	}
-
-	report.Violations = f.Thresholds.Violations(report.Metrics)
-	report.Pass = len(report.Violations) == 0
-	return report
+	return metrics, results, nil
 }
 
 func (t Thresholds) Violations(m Metrics) []string {
