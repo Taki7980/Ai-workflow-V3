@@ -1,14 +1,10 @@
 package indexer
 
 import (
-	"bufio"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"go/ast"
-	"go/parser"
-	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -24,8 +20,6 @@ import (
 
 var sourceExts = map[string]bool{".py": true, ".rs": true, ".js": true, ".jsx": true, ".ts": true, ".tsx": true, ".go": true, ".java": true, ".cs": true, ".cpp": true, ".cc": true, ".cxx": true, ".c": true, ".h": true, ".hpp": true, ".rb": true, ".php": true, ".swift": true, ".kt": true, ".scala": true, ".sql": true, ".vue": true, ".svelte": true}
 var excludes = map[string]bool{".git": true, "node_modules": true, "venv": true, ".venv": true, "dist": true, "build": true, "bin": true, "obj": true, "__pycache__": true, "ai-workspace": true, ".ai": true, ".agents": true}
-var symbolRE = regexp.MustCompile(`(?m)^\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:def|fn|function|class|struct|interface|type|enum|pub\s+fn|pub\s+struct|pub\(crate\)\s+fn))\s+([A-Za-z_][A-Za-z0-9_]*)`)
-var goFuncRE = regexp.MustCompile(`(?m)^\s*func\s+(?:\([^)]+\)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
 
 type FileState struct {
 	SHA256  string `json:"sha256"`
@@ -161,51 +155,8 @@ func indexFile(path, rel string) (FileState, []Symbol, error) {
 		return FileState{}, nil, err
 	}
 	state := FileState{SHA256: digest, Size: st.Size(), MTimeNS: st.ModTime().UnixNano()}
-	if strings.ToLower(filepath.Ext(path)) == ".go" {
-		if syms := goSymbols(path, rel, digest); syms != nil {
-			return state, syms, nil
-		}
-	}
-	return state, regexSymbols(string(b), rel, digest), nil
-}
-func goSymbols(path, rel, digest string) []Symbol {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
-	if err != nil {
-		return nil
-	}
-	out := []Symbol{}
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.FuncDecl:
-			p := fset.Position(x.Pos())
-			e := fset.Position(x.End())
-			out = append(out, Symbol{Name: x.Name.Name, Kind: "function", Path: rel, Line: p.Line, EndLine: e.Line, SHA256: digest})
-		case *ast.TypeSpec:
-			p := fset.Position(x.Pos())
-			e := fset.Position(x.End())
-			out = append(out, Symbol{Name: x.Name.Name, Kind: "type", Path: rel, Line: p.Line, EndLine: e.Line, SHA256: digest})
-		}
-		return true
-	})
-	return out
-}
-func regexSymbols(text, rel, digest string) []Symbol {
-	out := []Symbol{}
-	scan := bufio.NewScanner(strings.NewReader(text))
-	line := 0
-	for scan.Scan() {
-		line++
-		s := scan.Text()
-		m := symbolRE.FindStringSubmatch(s)
-		if len(m) < 2 {
-			m = goFuncRE.FindStringSubmatch(s)
-		}
-		if len(m) >= 2 {
-			out = append(out, Symbol{Name: m[1], Kind: "symbol", Path: rel, Line: line, SHA256: digest})
-		}
-	}
-	return out
+	syms, _ := parseSymbols(b, rel, digest)
+	return state, syms, nil
 }
 
 func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
