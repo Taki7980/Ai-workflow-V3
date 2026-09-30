@@ -161,51 +161,8 @@ func indexFile(path, rel string) (FileState, []Symbol, error) {
 		return FileState{}, nil, err
 	}
 	state := FileState{SHA256: digest, Size: st.Size(), MTimeNS: st.ModTime().UnixNano()}
-	if strings.ToLower(filepath.Ext(path)) == ".go" {
-		if syms := goSymbols(path, rel, digest); syms != nil {
-			return state, syms, nil
-		}
-	}
-	return state, regexSymbols(string(b), rel, digest), nil
-}
-func goSymbols(path, rel, digest string) []Symbol {
-	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, path, nil, 0)
-	if err != nil {
-		return nil
-	}
-	out := []Symbol{}
-	ast.Inspect(f, func(n ast.Node) bool {
-		switch x := n.(type) {
-		case *ast.FuncDecl:
-			p := fset.Position(x.Pos())
-			e := fset.Position(x.End())
-			out = append(out, Symbol{Name: x.Name.Name, Kind: "function", Path: rel, Line: p.Line, EndLine: e.Line, SHA256: digest})
-		case *ast.TypeSpec:
-			p := fset.Position(x.Pos())
-			e := fset.Position(x.End())
-			out = append(out, Symbol{Name: x.Name.Name, Kind: "type", Path: rel, Line: p.Line, EndLine: e.Line, SHA256: digest})
-		}
-		return true
-	})
-	return out
-}
-func regexSymbols(text, rel, digest string) []Symbol {
-	out := []Symbol{}
-	scan := bufio.NewScanner(strings.NewReader(text))
-	line := 0
-	for scan.Scan() {
-		line++
-		s := scan.Text()
-		m := symbolRE.FindStringSubmatch(s)
-		if len(m) < 2 {
-			m = goFuncRE.FindStringSubmatch(s)
-		}
-		if len(m) >= 2 {
-			out = append(out, Symbol{Name: m[1], Kind: "symbol", Path: rel, Line: line, SHA256: digest})
-		}
-	}
-	return out
+	syms, _ := parseSymbols(b, rel, digest)
+	return state, syms, nil
 }
 
 func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
