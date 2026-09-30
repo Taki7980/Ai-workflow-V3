@@ -9,6 +9,7 @@ import (
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/routing"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
@@ -19,6 +20,7 @@ type Cases struct {
 	Retrieval       []RetrievalCase      `json:"retrieval"`
 	RemoteIdentity  []RemoteIdentityCase `json:"remote_identity"`
 	RepositoryID    []RepositoryIDCase   `json:"repository_id"`
+	MMR             []MMRCase            `json:"mmr"`
 	ConfigSnapshot  bool                 `json:"config_snapshot"`
 }
 
@@ -46,6 +48,20 @@ type RepositoryIDCase struct {
 	RemoteIdentity *string `json:"remote_identity"`
 }
 
+type MMRCandidateCase struct {
+	Key   string  `json:"key"`
+	Text  string  `json:"text"`
+	Score float64 `json:"score"`
+}
+
+type MMRCase struct {
+	Name       string             `json:"name"`
+	Query      string             `json:"query"`
+	Lambda     float64            `json:"lambda"`
+	MaxItems   int                `json:"max_items"`
+	Candidates []MMRCandidateCase `json:"candidates"`
+}
+
 type Fixture struct {
 	SchemaVersion  int                            `json:"schema_version"`
 	Source         SourceRef                      `json:"source"`
@@ -53,6 +69,7 @@ type Fixture struct {
 	Retrieval      map[string]model.RetrievalPlan `json:"retrieval"`
 	RemoteIdentity map[string]*string             `json:"remote_identity"`
 	RepositoryID   map[string]string              `json:"repository_id"`
+	MMR            map[string][]string            `json:"mmr"`
 	Config         map[string]any                 `json:"config"`
 }
 
@@ -150,6 +167,39 @@ func Run(casesPath, fixturePath, lockPath string) (Report, error) {
 			remote = *c.RemoteIdentity
 		}
 		add("repository_id", c.Name, expected, workspace.RepositoryID(c.RelativePath, remote))
+	}
+
+	for _, c := range cases.MMR {
+		expected, ok := fixture.MMR[c.Name]
+		if !ok {
+			return Report{}, fmt.Errorf("missing MMR fixture %q", c.Name)
+		}
+		if c.MaxItems <= 0 {
+			return Report{}, fmt.Errorf("MMR case %q max_items must be positive", c.Name)
+		}
+		candidates := make([]retrieval.Candidate[string], 0, len(c.Candidates))
+		for _, candidate := range c.Candidates {
+			candidates = append(candidates, retrieval.Candidate[string]{
+				Key:             candidate.Key,
+				Text:            candidate.Text,
+				Value:           candidate.Key,
+				Relevance:       candidate.Score,
+				EstimatedTokens: 1,
+			})
+		}
+		selected, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{
+			MaxTokens:     c.MaxItems,
+			MaxCandidates: len(candidates),
+			Lambda:        c.Lambda,
+		})
+		if err != nil {
+			return Report{}, fmt.Errorf("MMR case %q: %w", c.Name, err)
+		}
+		actual := make([]string, 0, len(selected.Items))
+		for _, item := range selected.Items {
+			actual = append(actual, item.Key)
+		}
+		add("mmr", c.Name, expected, actual)
 	}
 
 	if cases.ConfigSnapshot {
