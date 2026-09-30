@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 )
 
+// WriteJSON marshals v as indented JSON and writes it to path atomically by
+// writing to a temporary file in the same directory and renaming it into place.
 func WriteJSON(path string, v any) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err

@@ -9,6 +9,8 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/compat"
 )
 
+// main runs the compatibility harness against the configured cases, fixtures,
+// and lock file, printing the resulting report as JSON and exiting non-zero on failure.
 func main() {
 	casesPath := flag.String("cases", "compat/cases.json", "compatibility input cases")
 	fixturePath := flag.String("fixtures", "compat/fixtures/v2-contracts.json", "frozen V2 outputs")

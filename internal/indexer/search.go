@@ -17,6 +17,8 @@ type Hit struct {
 	Score      float64 `json:"score"`
 }
 
+// Load reads and decodes the on-disk index for repo within the workspace
+// rooted at controlRoot.
 func Load(controlRoot string, repo workspace.Repository) (Index, error) {
 	b, err := os.ReadFile(Path(controlRoot, repo))
 	if err != nil {
@@ -26,6 +28,10 @@ func Load(controlRoot string, repo workspace.Repository) (Index, error) {
 	err = json.Unmarshal(b, &idx)
 	return idx, err
 }
+
+// Search ranks the symbols across all indexes against query using BM25 and
+// returns up to limit hits (defaulting to 6 when limit is non-positive),
+// ordered by descending relevance score.
 func Search(query string, indexes map[string]Index, limit int) []Hit {
 	texts := []string{}
 	values := []Hit{}

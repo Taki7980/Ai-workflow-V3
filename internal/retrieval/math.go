@@ -10,6 +10,8 @@ import (
 
 var wordRE = regexp.MustCompile(`[[:alnum:]]+`)
 
+// Tokenize splits text into lowercase alphanumeric tokens, additionally
+// emitting camelCase-split sub-tokens for improved matching.
 func Tokenize(text string) []string {
 	raw := wordRE.FindAllString(strings.ReplaceAll(text, "_", " "), -1)
 	out := make([]string, 0, len(raw)*2)
@@ -30,6 +32,7 @@ func Tokenize(text string) []string {
 	return out
 }
 
+// camelParts splits s at camelCase boundaries, returning the resulting substrings.
 func camelParts(s string) []string {
 	r := []rune(s)
 	if len(r) == 0 {
@@ -69,6 +72,9 @@ type Scored[T any] struct {
 	Value T
 }
 
+// NewBM25 builds a BM25 index over texts, pairing each text with its
+// corresponding value, and precomputes term frequencies, document
+// frequencies, and inverse document frequencies for ranking.
 func NewBM25[T any](texts []string, values []T) *BM25[T] {
 	b := &BM25[T]{K1: 1.5, B: .75, IDF: map[string]float64{}}
 	if len(texts) != len(values) {
@@ -104,6 +110,8 @@ func NewBM25[T any](texts []string, values []T) *BM25[T] {
 	return b
 }
 
+// Rank scores every document in b against query using the BM25 formula and
+// returns the matching documents sorted by descending score.
 func (b *BM25[T]) Rank(query string) []Scored[T] {
 	if b.AvgDL <= 0 {
 		return nil
@@ -140,6 +148,9 @@ type Ranked[T any] struct {
 	Key   string
 }
 
+// RRF combines multiple ranked lists using Reciprocal Rank Fusion with
+// smoothing constant k (defaulting to 60 when non-positive), returning the
+// fused results sorted by descending score.
 func RRF[T any](rankings [][]Ranked[T], k float64) []Scored[T] {
 	if k <= 0 {
 		k = 60
@@ -180,6 +191,8 @@ func RRF[T any](rankings [][]Ranked[T], k float64) []Scored[T] {
 	return out
 }
 
+// Jaccard returns the Jaccard similarity coefficient between sets a and b,
+// or 0 if they have no elements in common.
 func Jaccard(a, b map[string]struct{}) float64 {
 	inter := 0
 	for x := range a {

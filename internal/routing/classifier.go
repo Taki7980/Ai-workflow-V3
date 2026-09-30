@@ -14,6 +14,8 @@ var (
 	fileHint      = regexp.MustCompile(`(?i)[\w./\\-]+\.(py|go|rs|js|ts|tsx|java|cs|cpp|h|rb|php|md|json|ya?ml)`)
 )
 
+// containsAny returns the subset of items whose (case-insensitive) word-bounded
+// form appears in text, preserving the original casing of matched items.
 func containsAny(text string, items []string) []string {
 	lower := strings.ToLower(text)
 	out := make([]string, 0, 3)
@@ -30,6 +32,9 @@ func containsAny(text string, items []string) []string {
 	return out
 }
 
+// Classify inspects the task text against the configured keyword lists and
+// heuristics to decide which execution lane and risk level should handle it,
+// returning the routing decision with supporting reasons and a confidence score.
 func Classify(task string, cfg config.Config) model.RouteDecision {
 	text := strings.Join(strings.Fields(task), " ")
 	high := containsAny(text, cfg.Classifier.HighRiskKeywords)
@@ -75,12 +80,15 @@ func Classify(task string, cfg config.Config) model.RouteDecision {
 	return model.RouteDecision{Lane: model.LaneFull, Risk: model.RiskMedium, Reasons: []string{"ambiguous task defaults to safe full-lane planning"}, Confidence: .62}
 }
 
+// min returns the smaller of a and b.
 func min(a, b int) int {
 	if a < b {
 		return a
 	}
 	return b
 }
+
+// itoa converts a non-negative integer n to its decimal string representation.
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

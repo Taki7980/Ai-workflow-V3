@@ -11,12 +11,19 @@ var goFuncRE = regexp.MustCompile(`(?m)^\s*func\s+(?:\([^)]+\)\s+)?([A-Za-z_][A-
 
 type regexSymbolParser struct{}
 
+// Name returns the identifier for the regex-based fallback symbol parser.
 func (regexSymbolParser) Name() string { return "regex" }
+
+// Supports reports that this fallback parser handles every file extension.
 func (regexSymbolParser) Supports(string) bool { return true }
+
+// Parse extracts symbols from source using regexSymbols.
 func (regexSymbolParser) Parse(source []byte, relativePath, digest string) ([]Symbol, error) {
 	return regexSymbols(string(source), relativePath, digest), nil
 }
 
+// regexSymbols scans text line by line, matching common function/type/class
+// declaration patterns across languages and returning a Symbol for each match.
 func regexSymbols(text, rel, digest string) []Symbol {
 	out := []Symbol{}
 	scan := bufio.NewScanner(strings.NewReader(text))

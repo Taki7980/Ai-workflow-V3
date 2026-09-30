@@ -19,6 +19,10 @@ type Report struct {
 	Checks []Check `json:"checks"`
 }
 
+// Run performs a set of workspace health checks (git availability, config
+// validity, repository discovery, and workspace root existence) and returns
+// an aggregated report. In strict mode, repository discovery must find at
+// least one repository to pass.
 func Run(ctx context.Context, root string, strict bool) Report {
 	checks := []Check{}
 	_, err := exec.LookPath("git")
@@ -43,12 +47,17 @@ func Run(ctx context.Context, root string, strict bool) Report {
 	}
 	return Report{OK: ok, Checks: checks}
 }
+
+// detail returns err's message if non-nil, otherwise the given success message.
 func detail(err error, success string) string {
 	if err != nil {
 		return err.Error()
 	}
 	return success
 }
+
+// repoDetail describes the outcome of repository discovery: err's message if
+// discovery failed, otherwise a human-readable count of repositories found.
 func repoDetail(err error, n int) string {
 	if err != nil {
 		return err.Error()
@@ -58,6 +67,8 @@ func repoDetail(err error, n int) string {
 	}
 	return itoa(n) + " repository/repositories discovered"
 }
+
+// itoa converts a non-negative integer n to its decimal string representation.
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

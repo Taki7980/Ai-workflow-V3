@@ -45,10 +45,14 @@ type Registry struct {
 	Repositories   []Repository `json:"repositories"`
 }
 
+// RegistryPath returns the on-disk location of the repository registry file
+// for the workspace rooted at root.
 func RegistryPath(root string) string {
 	return filepath.Join(root, "ai-workspace", "config", "repositories.json")
 }
 
+// RepositoryID deterministically derives a repository identifier by hashing
+// its relative path together with its remote identity, if any.
 func RepositoryID(rel, remote string) string {
 	var remoteValue any
 	if remote != "" {
@@ -59,6 +63,9 @@ func RepositoryID(rel, remote string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// RemoteIdentity normalizes a raw git remote URL (SSH shorthand, standard
+// URL, or otherwise) into a stable "host/path" identity, falling back to an
+// opaque hash when the format cannot be parsed.
 func RemoteIdentity(raw string) string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -92,6 +99,9 @@ func RemoteIdentity(raw string) string {
 	return "opaque:" + hex.EncodeToString(h[:])[:16]
 }
 
+// Discover walks the directory tree under root up to maxDepth, skipping
+// well-known non-project directories, and returns metadata for every Git
+// repository found (including nested ones), sorted for deterministic output.
 func Discover(ctx context.Context, root string, maxDepth int, autoInclude bool) ([]Repository, error) {
 	abs, err := filepath.Abs(root)
 	if err != nil {
@@ -146,6 +156,9 @@ func Discover(ctx context.Context, root string, maxDepth int, autoInclude bool) 
 	return found, nil
 }
 
+// isRepository reports whether path contains a .git directory or gitdir
+// file (as used by worktrees/submodules), returning the resolved git
+// directory path when found.
 func isRepository(path string) (bool, string) {
 	dot := filepath.Join(path, ".git")
 	st, err := os.Stat(dot)
@@ -174,6 +187,8 @@ func isRepository(path string) (bool, string) {
 	return false, ""
 }
 
+// metadata gathers Git metadata (remote, HEAD ref/SHA, git dir) for the
+// repository at repoRoot and builds its Repository record relative to controlRoot.
 func metadata(ctx context.Context, repoRoot, controlRoot string, include bool) Repository {
 	rel, _ := filepath.Rel(controlRoot, repoRoot)
 	rel = filepath.ToSlash(rel)
@@ -196,6 +211,8 @@ func metadata(ctx context.Context, repoRoot, controlRoot string, include bool) R
 	}
 }
 
+// gitText runs a git command with the given args in root, bounded by a
+// timeout, and returns its trimmed stdout output.
 func gitText(parent context.Context, root string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
 	defer cancel()
@@ -208,10 +225,14 @@ func gitText(parent context.Context, root string, args ...string) (string, error
 	return strings.TrimSpace(string(b)), nil
 }
 
+// Save writes the given repositories as the workspace registry for root,
+// marking it as requiring review.
 func Save(root string, repos []Repository) error {
 	return storage.WriteJSON(RegistryPath(root), Registry{Version: RegistryVersion, ReviewRequired: true, Repositories: repos})
 }
 
+// Load reads the workspace registry for root, validating its version,
+// review flag, repository IDs, and uniqueness before returning it.
 func Load(root string) (Registry, error) {
 	b, err := os.ReadFile(RegistryPath(root))
 	if err != nil {
@@ -240,6 +261,8 @@ func Load(root string) (Registry, error) {
 	return r, nil
 }
 
+// relativePtr returns a pointer to path expressed relative to root, or nil
+// if path is empty or escapes root.
 func relativePtr(path, root string) *string {
 	if path == "" {
 		return nil
@@ -251,12 +274,16 @@ func relativePtr(path, root string) *string {
 	s := filepath.ToSlash(rel)
 	return &s
 }
+
+// nonEmptyPtr returns a pointer to s, or nil if s is empty.
 func nonEmptyPtr(s string) *string {
 	if s == "" {
 		return nil
 	}
 	return &s
 }
+
+// deref returns *s, or the empty string if s is nil.
 func deref(s *string) string {
 	if s == nil {
 		return ""

@@ -42,6 +42,8 @@ type Index struct {
 	Symbols    []Symbol             `json:"symbols"`
 }
 
+// repoKey derives a filesystem-safe key for a repository's relative path,
+// used to namespace its on-disk index directory.
 func repoKey(rel string) string {
 	if rel == "." || rel == "" {
 		return "root"
@@ -49,10 +51,16 @@ func repoKey(rel string) string {
 	s := regexp.MustCompile(`[^A-Za-z0-9._-]+`).ReplaceAllString(filepath.ToSlash(rel), "-")
 	return strings.Trim(s, ".-_")
 }
+
+// Path returns the on-disk location of the index file for repo within the
+// workspace rooted at controlRoot.
 func Path(controlRoot string, repo workspace.Repository) string {
 	return filepath.Join(controlRoot, "ai-workspace", "indexes", repoKey(repo.RelativePath), "index.json")
 }
 
+// Build walks repo's source files (skipping excluded directories and nested
+// Git roots), hashes and parses each file concurrently to build a symbol
+// index, writes the resulting index to disk, and returns it.
 func Build(ctx context.Context, controlRoot string, repo workspace.Repository) (Index, error) {
 	repoRoot := controlRoot
 	if repo.RelativePath != "." {
@@ -143,6 +151,8 @@ func Build(ctx context.Context, controlRoot string, repo workspace.Repository) (
 	return idx, nil
 }
 
+// indexFile reads the file at path, computes its SHA-256 digest and file
+// state, and parses it for symbols, returning the state and any found symbols.
 func indexFile(path, rel string) (FileState, []Symbol, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -159,6 +169,8 @@ func indexFile(path, rel string) (FileState, []Symbol, error) {
 	return state, syms, nil
 }
 
+// BuildWorkspace builds an index for every included repository in reg,
+// returning a map of relative repository path to its built index.
 func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
 	out := map[string]Index{}
 	for _, repo := range reg.Repositories {
@@ -174,6 +186,8 @@ func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (m
 	return out, nil
 }
 
+// isNestedGitRoot reports whether path contains a .git entry, indicating it
+// is the root of a nested Git repository that should not be indexed.
 func isNestedGitRoot(path string) bool {
 	st, err := os.Stat(filepath.Join(path, ".git"))
 	return err == nil && (st.IsDir() || st.Mode().IsRegular())

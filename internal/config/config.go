@@ -112,6 +112,8 @@ type Config struct {
 	Models     Models     `json:"models"`
 }
 
+// Default returns the built-in V3 configuration used when no configuration
+// file exists yet or as the base for the full config document.
 func Default() Config {
 	return Config{
 		Version: CurrentVersion,
@@ -142,8 +144,12 @@ func Default() Config {
 	}
 }
 
+// Path returns the absolute path to the control-plane config file for the
+// workspace rooted at root.
 func Path(root string) string { return filepath.Join(root, filepath.FromSlash(RelativePath)) }
 
+// Load reads and decodes the config file for the workspace rooted at root,
+// returning the default configuration if no file exists yet.
 func Load(root string) (Config, error) {
 	p := Path(root)
 	b, err := os.ReadFile(p)
@@ -166,6 +172,8 @@ func Load(root string) (Config, error) {
 	return c, nil
 }
 
+// Validate checks that c's safety-critical fields are within supported
+// ranges, returning an error describing the first invalid field found.
 func (c Config) Validate() error {
 	if c.Version != CurrentVersion {
 		return fmt.Errorf("unsupported config version %d", c.Version)

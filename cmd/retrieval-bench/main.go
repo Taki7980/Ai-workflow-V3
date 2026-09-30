@@ -9,6 +9,8 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/eval"
 )
 
+// main loads the retrieval benchmark fixture, runs the evaluation, and prints
+// the resulting report as JSON, exiting non-zero if enforcement is enabled and thresholds fail.
 func main() {
 	fixturePath := flag.String("fixture", "benchmarks/retrieval/baseline.json", "retrieval benchmark fixture")
 	enforce := flag.Bool("enforce", false, "exit non-zero when configured thresholds are violated")

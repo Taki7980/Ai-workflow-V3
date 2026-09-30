@@ -19,12 +19,17 @@ type treeSitterSymbolParser struct {
 	family     string
 }
 
+// Name returns this tree-sitter parser's identifier.
 func (p treeSitterSymbolParser) Name() string { return p.name }
 
+// Supports reports whether this parser's language handles the given file extension.
 func (p treeSitterSymbolParser) Supports(extension string) bool {
 	return p.extensions[extension]
 }
 
+// Parse parses source with the configured tree-sitter language, walks the
+// resulting syntax tree to collect symbols, and returns them sorted by
+// position, name, and kind.
 func (p treeSitterSymbolParser) Parse(source []byte, relativePath, digest string) ([]Symbol, error) {
 	parser := tree_sitter.NewParser()
 	defer parser.Close()
@@ -60,6 +65,8 @@ func (p treeSitterSymbolParser) Parse(source []byte, relativePath, digest string
 	return out, nil
 }
 
+// treeSitterParsers returns the set of tree-sitter-backed symbol parsers
+// available when the treesitter build tag is enabled.
 func treeSitterParsers() []symbolParser {
 	return []symbolParser{
 		treeSitterSymbolParser{
@@ -97,6 +104,8 @@ func treeSitterParsers() []symbolParser {
 	}
 }
 
+// walkTreeSitter recursively visits node and its named children, appending
+// any recognized symbol to out.
 func walkTreeSitter(node *tree_sitter.Node, source []byte, relativePath, digest, family string, out *[]Symbol) {
 	if node == nil {
 		return
@@ -109,6 +118,9 @@ func walkTreeSitter(node *tree_sitter.Node, source []byte, relativePath, digest,
 	}
 }
 
+// treeSitterSymbol inspects a single syntax node and, if it represents a
+// function/type declaration recognized for the given language family,
+// returns the corresponding Symbol and true.
 func treeSitterSymbol(node *tree_sitter.Node, source []byte, relativePath, digest, family string) (Symbol, bool) {
 	kind := node.Kind()
 	symbolKind := ""

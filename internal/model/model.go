@@ -54,6 +54,8 @@ type ContextItem struct {
 	Provenance map[string]any `json:"provenance,omitempty"`
 }
 
+// DedupeKey returns a SHA-256 hash of the item's text, used to identify and
+// remove duplicate context items.
 func (c ContextItem) DedupeKey() [32]byte {
 	return sha256.Sum256([]byte(c.Text))
 }
