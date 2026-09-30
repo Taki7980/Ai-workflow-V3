@@ -79,17 +79,17 @@
   ],
   "file_token_estimates": {
     "internal/payment/service.go": 400,
-    "internal/payment/service_helper.go": 400,
-    "internal/payment/retry.go": 400,
-    "internal/payment/retry_helper.go": 400,
-    "internal/auth/token.go": 400,
-    "internal/auth/token_cache.go": 400,
-    "internal/user/register.go": 400,
-    "internal/user/register_validation.go": 400,
+    "internal/payment/service_helper.go": 450,
+    "internal/payment/retry.go": 360,
+    "internal/payment/retry_helper.go": 420,
+    "internal/auth/token.go": 300,
+    "internal/auth/token_cache.go": 450,
+    "internal/user/register.go": 320,
+    "internal/user/register_validation.go": 440,
     "tests/payment/service_test.go": 400,
-    "tests/payment/helper_test.go": 400,
-    "docs/payment.md": 400,
-    "docs/payment_faq.md": 400
+    "tests/payment/helper_test.go": 380,
+    "docs/payment.md": 280,
+    "docs/payment_faq.md": 460
   },
   "cases": [
     {
