@@ -6,8 +6,8 @@ import (
 	"strings"
 )
 
-var symbolRE = regexp.MustCompile(\`(?m)^\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:def|fn|function|class|struct|interface|type|enum|pub\s+fn|pub\s+struct|pub\(crate\)\s+fn))\s+([A-Za-z_][A-Za-z0-9_]*)\`)
-var goFuncRE = regexp.MustCompile(\`(?m)^\s*func\s+(?:\([^)]+\)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(\`)
+var symbolRE = regexp.MustCompile(`(?m)^\s*(?:(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:def|fn|function|class|struct|interface|type|enum|pub\s+fn|pub\s+struct|pub\(crate\)\s+fn))\s+([A-Za-z_][A-Za-z0-9_]*)`)
+var goFuncRE = regexp.MustCompile(`(?m)^\s*func\s+(?:\([^)]+\)\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
 
 type regexSymbolParser struct{}
 
