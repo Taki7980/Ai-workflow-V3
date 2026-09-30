@@ -23,6 +23,8 @@ jobs:
           cache: true
       - run: go test ./...
       - run: go vet ./...
+      - name: Test tagged Tree-sitter parser pilot
+        run: go test -tags treesitter ./internal/indexer -count=1
 
   build:
     runs-on: ubuntu-latest
@@ -88,5 +90,26 @@ jobs:
         with:
           go-version: "1.27.x"
           cache: true
+      - name: Verify default build is CGO-free
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          go test ./...
+          go build -o /tmp/ai-workflow-cgo-free ./cmd/ai-workflow
       - name: Run tagged parser pilot tests
         run: go test -tags treesitter ./internal/indexer -count=1
+      - name: Vet tagged parser pilot
+        run: go vet -tags treesitter ./internal/indexer
+      - name: Measure parser pilot performance
+        run: go test -tags treesitter ./internal/indexer -run '^ -bench BenchmarkParserPilot -benchmem -benchtime=50x
+      - name: Measure parser pilot binary size
+        shell: bash
+        run: |
+          go build -o /tmp/ai-workflow-default ./cmd/ai-workflow
+          go build -tags treesitter -o /tmp/ai-workflow-treesitter ./cmd/ai-workflow
+          default_size="$(stat -c%s /tmp/ai-workflow-default)"
+          tagged_size="$(stat -c%s /tmp/ai-workflow-treesitter)"
+          delta="$((tagged_size - default_size))"
+          echo "PARSER_PILOT_BINARY_SIZE default_bytes=$default_size tagged_bytes=$tagged_size delta_bytes=$delta"
+      - name: Report pinned parser modules
+        run: go list -m github.com/tree-sitter/go-tree-sitter github.com/tree-sitter/tree-sitter-python github.com/tree-sitter/tree-sitter-javascript github.com/tree-sitter/tree-sitter-typescript
