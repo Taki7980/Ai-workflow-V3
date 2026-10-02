@@ -1,7 +1,6 @@
 package indexer
 
 import (
-	"bufio"
 	"regexp"
 	"strings"
 )
@@ -24,13 +23,15 @@ func (regexSymbolParser) Parse(source []byte, relativePath, digest string) ([]Sy
 
 // regexSymbols scans text line by line, matching common function/type/class
 // declaration patterns across languages and returning a Symbol for each match.
+// Lines are split without a length limit: a bufio.Scanner would stop at the
+// first line over 64 KiB (common in minified or generated code) and silently
+// drop every symbol after it.
 func regexSymbols(text, rel, digest string) []Symbol {
 	out := []Symbol{}
-	scan := bufio.NewScanner(strings.NewReader(text))
 	line := 0
-	for scan.Scan() {
+	for s := range strings.Lines(text) {
 		line++
-		s := scan.Text()
+		s = strings.TrimRight(s, "\r\n")
 		m := symbolRE.FindStringSubmatch(s)
 		if len(m) < 2 {
 			m = goFuncRE.FindStringSubmatch(s)

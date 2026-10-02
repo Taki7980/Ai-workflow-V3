@@ -3,6 +3,7 @@ package indexer
 import (
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -78,5 +79,21 @@ func TestParserFailureFallsThroughDeterministically(t *testing.T) {
 	}
 	if firstCalls != 1 || secondCalls != 1 {
 		t.Fatalf("calls first=%d second=%d", firstCalls, secondCalls)
+	}
+}
+
+func TestRegexSymbolsSurviveLinesLongerThanScannerLimit(t *testing.T) {
+	long := "const blob = \"" + strings.Repeat("x", 200<<10) + "\";\n"
+	text := "function before() {}\n" + long + "function after() {}\n"
+	syms := regexSymbols(text, "bundle.js", "digest")
+	names := []string{}
+	for _, s := range syms {
+		names = append(names, s.Name)
+	}
+	if strings.Join(names, ",") != "before,after" {
+		t.Fatalf("symbols=%v", names)
+	}
+	if syms[1].Line != 3 {
+		t.Fatalf("after line=%d want 3", syms[1].Line)
 	}
 }
