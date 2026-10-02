@@ -16,23 +16,23 @@ func BenchmarkParserPilot(b *testing.B) {
 		source []byte
 	}{
 		{
-			name: "python",
-			path: "payment.py",
+			name:   "python",
+			path:   "payment.py",
 			source: []byte("class PaymentService:\n    def retry(self):\n        return True\n\ndef settle():\n    return 1\n"),
 		},
 		{
-			name: "javascript",
-			path: "payment.js",
+			name:   "javascript",
+			path:   "payment.js",
 			source: []byte("class PaymentService {}\nfunction settle() {}\nconst retry = async () => {};\n"),
 		},
 		{
-			name: "typescript",
-			path: "payment.ts",
+			name:   "typescript",
+			path:   "payment.ts",
 			source: []byte("interface Payment { id: string }\ntype Retry = \"safe\" | \"fast\";\nfunction settle(): void {}\nconst retry = () => {};\n"),
 		},
 		{
-			name: "tsx",
-			path: "payment.tsx",
+			name:   "tsx",
+			path:   "payment.tsx",
 			source: []byte("const PaymentCard = () => <div />;\nfunction Checkout() { return <PaymentCard />; }\n"),
 		},
 	}

@@ -22,7 +22,6 @@ func TestBaselineFixture(t *testing.T) {
 	}
 }
 
-
 func TestSelectorFixtureImprovesContextEfficiencyWithoutQualityRegression(t *testing.T) {
 	fixture, err := LoadFixture("../../benchmarks/retrieval/selector.json")
 	if err != nil {
@@ -60,7 +59,6 @@ func TestSelectorFixtureImprovesContextEfficiencyWithoutQualityRegression(t *tes
 		}
 	}
 }
-
 
 func TestSelectorFixtureUsesVariedFileCosts(t *testing.T) {
 	fixture, err := LoadFixture("../../benchmarks/retrieval/selector.json")

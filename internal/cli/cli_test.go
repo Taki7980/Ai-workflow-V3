@@ -36,7 +36,7 @@ func writeContextWorkspace(t *testing.T, cfg config.Config, idx indexer.Index) s
 func TestContextCommandRetainsHitArraySchema(t *testing.T) {
 	cfg := config.Default()
 	idx := indexer.Index{
-		Version: 1,
+		Version:    1,
 		Repository: ".",
 		Files: map[string]indexer.FileState{
 			"service.go": {Size: 40},
@@ -64,7 +64,7 @@ func TestContextCommandRespectsAnswerLaneTokenBudget(t *testing.T) {
 	cfg := config.Default()
 	cfg.Budgets.Answer.EstimatedTokens = 5
 	idx := indexer.Index{
-		Version: 1,
+		Version:    1,
 		Repository: ".",
 		Files: map[string]indexer.FileState{
 			"a.go": {Size: 20},
@@ -101,10 +101,10 @@ func TestSelectContextHitsReturnsSelectorError(t *testing.T) {
 	cfg.Context.Selector.MaxSelectorCandidates = 0
 	indexes := map[string]indexer.Index{
 		".": {
-			Version: 1,
+			Version:    1,
 			Repository: ".",
-			Files: map[string]indexer.FileState{"a.go": {Size: 4}},
-			Symbols: []indexer.Symbol{{Name: "Payment", Kind: "function", Path: "a.go", Line: 1}},
+			Files:      map[string]indexer.FileState{"a.go": {Size: 4}},
+			Symbols:    []indexer.Symbol{{Name: "Payment", Kind: "function", Path: "a.go", Line: 1}},
 		},
 	}
 	if _, err := selectContextHits("Payment", indexes, cfg); err == nil {

@@ -8,14 +8,14 @@ import (
 )
 
 type fakeSymbolParser struct {
-	name      string
-	ext       string
-	symbols   []Symbol
-	err       error
-	calls     *int
+	name    string
+	ext     string
+	symbols []Symbol
+	err     error
+	calls   *int
 }
 
-func (p fakeSymbolParser) Name() string { return p.name }
+func (p fakeSymbolParser) Name() string             { return p.name }
 func (p fakeSymbolParser) Supports(ext string) bool { return ext == p.ext }
 func (p fakeSymbolParser) Parse(_ []byte, _, _ string) ([]Symbol, error) {
 	if p.calls != nil {

@@ -15,13 +15,13 @@ import (
 )
 
 type Cases struct {
-	SchemaVersion   int                  `json:"schema_version"`
-	Routing         []RoutingCase        `json:"routing"`
-	Retrieval       []RetrievalCase      `json:"retrieval"`
-	RemoteIdentity  []RemoteIdentityCase `json:"remote_identity"`
-	RepositoryID    []RepositoryIDCase   `json:"repository_id"`
-	MMR             []MMRCase            `json:"mmr"`
-	ConfigSnapshot  bool                 `json:"config_snapshot"`
+	SchemaVersion  int                  `json:"schema_version"`
+	Routing        []RoutingCase        `json:"routing"`
+	Retrieval      []RetrievalCase      `json:"retrieval"`
+	RemoteIdentity []RemoteIdentityCase `json:"remote_identity"`
+	RepositoryID   []RepositoryIDCase   `json:"repository_id"`
+	MMR            []MMRCase            `json:"mmr"`
+	ConfigSnapshot bool                 `json:"config_snapshot"`
 }
 
 type RoutingCase struct {

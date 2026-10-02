@@ -70,7 +70,7 @@ func (p treeSitterSymbolParser) Parse(source []byte, relativePath, digest string
 func treeSitterParsers() []symbolParser {
 	return []symbolParser{
 		treeSitterSymbolParser{
-			name: "tree-sitter-python",
+			name:       "tree-sitter-python",
 			extensions: map[string]bool{".py": true},
 			language: func() *tree_sitter.Language {
 				return tree_sitter.NewLanguage(tree_sitter_python.Language())
@@ -78,7 +78,7 @@ func treeSitterParsers() []symbolParser {
 			family: "python",
 		},
 		treeSitterSymbolParser{
-			name: "tree-sitter-javascript",
+			name:       "tree-sitter-javascript",
 			extensions: map[string]bool{".js": true, ".jsx": true},
 			language: func() *tree_sitter.Language {
 				return tree_sitter.NewLanguage(tree_sitter_javascript.Language())
@@ -86,7 +86,7 @@ func treeSitterParsers() []symbolParser {
 			family: "javascript",
 		},
 		treeSitterSymbolParser{
-			name: "tree-sitter-typescript",
+			name:       "tree-sitter-typescript",
 			extensions: map[string]bool{".ts": true},
 			language: func() *tree_sitter.Language {
 				return tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTypescript())
@@ -94,7 +94,7 @@ func treeSitterParsers() []symbolParser {
 			family: "typescript",
 		},
 		treeSitterSymbolParser{
-			name: "tree-sitter-tsx",
+			name:       "tree-sitter-tsx",
 			extensions: map[string]bool{".tsx": true},
 			language: func() *tree_sitter.Language {
 				return tree_sitter.NewLanguage(tree_sitter_typescript.LanguageTSX())

@@ -63,7 +63,7 @@ func TestTreeSitterJavaScriptSymbols(t *testing.T) {
 	for name, kind := range map[string]string{
 		"processPayment": "function",
 		"PaymentService": "type",
-		"retryPayment": "function",
+		"retryPayment":   "function",
 	} {
 		symbol := symbolByName(t, got, name)
 		if symbol.Kind != kind {
@@ -90,12 +90,12 @@ func TestTreeSitterTypeScriptSymbols(t *testing.T) {
 		t.Fatalf("parser=%q", parserName)
 	}
 	for name, kind := range map[string]string{
-		"Payment": "type",
-		"RetryPolicy": "type",
-		"State": "type",
+		"Payment":       "type",
+		"RetryPolicy":   "type",
+		"State":         "type",
 		"BaseProcessor": "type",
-		"settle": "function",
-		"retry": "function",
+		"settle":        "function",
+		"retry":         "function",
 	} {
 		symbol := symbolByName(t, got, name)
 		if symbol.Kind != kind {

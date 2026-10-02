@@ -12,13 +12,13 @@ import (
 )
 
 type Fixture struct {
-	SchemaVersion      int               `json:"schema_version"`
-	Name               string            `json:"name"`
-	K                  int               `json:"k"`
-	Repository         string            `json:"repository"`
-	Symbols            []SymbolFixture   `json:"symbols"`
-	FileTokenEstimates map[string]int    `json:"file_token_estimates"`
-	Cases              []RetrievalCase   `json:"cases"`
+	SchemaVersion        int                  `json:"schema_version"`
+	Name                 string               `json:"name"`
+	K                    int                  `json:"k"`
+	Repository           string               `json:"repository"`
+	Symbols              []SymbolFixture      `json:"symbols"`
+	FileTokenEstimates   map[string]int       `json:"file_token_estimates"`
+	Cases                []RetrievalCase      `json:"cases"`
 	Thresholds           Thresholds           `json:"thresholds"`
 	Selector             *SelectorFixture     `json:"selector,omitempty"`
 	ComparisonThresholds ComparisonThresholds `json:"comparison_thresholds,omitempty"`
@@ -50,26 +50,26 @@ type ComparisonThresholds struct {
 }
 
 type Thresholds struct {
-	MinRecallAt1          float64 `json:"min_recall_at_1"`
-	MinRecallAtK          float64 `json:"min_recall_at_k"`
-	MinMRR                float64 `json:"min_mrr"`
-	MinFileF1AtK          float64 `json:"min_file_f1_at_k"`
-	MinContextYield       float64 `json:"min_context_yield"`
+	MinRecallAt1           float64 `json:"min_recall_at_1"`
+	MinRecallAtK           float64 `json:"min_recall_at_k"`
+	MinMRR                 float64 `json:"min_mrr"`
+	MinFileF1AtK           float64 `json:"min_file_f1_at_k"`
+	MinContextYield        float64 `json:"min_context_yield"`
 	MaxNoGoldFalsePositive float64 `json:"max_no_gold_false_positive_rate"`
-	MaxAvgRetrievedTokens float64 `json:"max_avg_retrieved_tokens"`
+	MaxAvgRetrievedTokens  float64 `json:"max_avg_retrieved_tokens"`
 }
 
 type Metrics struct {
-	PositiveCases            int     `json:"positive_cases"`
-	NoGoldCases              int     `json:"no_gold_cases"`
-	RecallAt1                float64 `json:"recall_at_1"`
-	RecallAtK                float64 `json:"recall_at_k"`
-	MRR                      float64 `json:"mrr"`
-	FilePrecisionAtK         float64 `json:"file_precision_at_k"`
-	FileF1AtK                float64 `json:"file_f1_at_k"`
-	ContextYield             float64 `json:"context_yield"`
-	AvgRetrievedTokens       float64 `json:"avg_retrieved_tokens"`
-	NoGoldFalsePositiveRate  float64 `json:"no_gold_false_positive_rate"`
+	PositiveCases           int     `json:"positive_cases"`
+	NoGoldCases             int     `json:"no_gold_cases"`
+	RecallAt1               float64 `json:"recall_at_1"`
+	RecallAtK               float64 `json:"recall_at_k"`
+	MRR                     float64 `json:"mrr"`
+	FilePrecisionAtK        float64 `json:"file_precision_at_k"`
+	FileF1AtK               float64 `json:"file_f1_at_k"`
+	ContextYield            float64 `json:"context_yield"`
+	AvgRetrievedTokens      float64 `json:"avg_retrieved_tokens"`
+	NoGoldFalsePositiveRate float64 `json:"no_gold_false_positive_rate"`
 }
 
 type CaseResult struct {

@@ -470,4 +470,3 @@ func doctorCmd(root string, args []string, out, errOut io.Writer) int {
 	}
 	return 0
 }
-
