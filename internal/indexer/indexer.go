@@ -2,21 +2,16 @@ package indexer
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
-	"runtime"
-	"sort"
 	"strings"
-	"sync"
-	"time"
 
-	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
+
+const IndexVersion = 2
 
 var sourceExts = map[string]bool{".py": true, ".rs": true, ".js": true, ".jsx": true, ".ts": true, ".tsx": true, ".go": true, ".java": true, ".cs": true, ".cpp": true, ".cc": true, ".cxx": true, ".c": true, ".h": true, ".hpp": true, ".rb": true, ".php": true, ".swift": true, ".kt": true, ".scala": true, ".sql": true, ".vue": true, ".svelte": true}
 var excludes = map[string]bool{".git": true, "node_modules": true, "venv": true, ".venv": true, "dist": true, "build": true, "bin": true, "obj": true, "__pycache__": true, "ai-workspace": true, ".ai": true, ".agents": true}
@@ -26,6 +21,7 @@ type FileState struct {
 	Size    int64  `json:"size"`
 	MTimeNS int64  `json:"mtime_ns"`
 }
+
 type Symbol struct {
 	Name    string `json:"name"`
 	Kind    string `json:"kind"`
@@ -34,12 +30,20 @@ type Symbol struct {
 	EndLine int    `json:"end_line,omitempty"`
 	SHA256  string `json:"sha256"`
 }
+
 type Index struct {
-	Version    int                  `json:"version"`
-	Repository string               `json:"repository"`
-	BuiltAt    string               `json:"built_at"`
-	Files      map[string]FileState `json:"files"`
-	Symbols    []Symbol             `json:"symbols"`
+	Version           int                  `json:"version"`
+	Repository        string               `json:"repository"`
+	RepositoryID      string               `json:"repository_id"`
+	ExtractorRevision string               `json:"extractor_revision"`
+	BuiltAt           string               `json:"built_at"`
+	Files             map[string]FileState `json:"files"`
+	Symbols           []Symbol             `json:"symbols"`
+}
+
+type WorkspaceBuildResult struct {
+	Index Index      `json:"index"`
+	Stats BuildStats `json:"stats"`
 }
 
 // repoKey derives a filesystem-safe key for a repository's relative path,
@@ -58,130 +62,39 @@ func Path(controlRoot string, repo workspace.Repository) string {
 	return filepath.Join(controlRoot, "ai-workspace", "indexes", repoKey(repo.RelativePath), "index.json")
 }
 
-// Build walks repo's source files (skipping excluded directories and nested
-// Git roots), hashes and parses each file concurrently to build a symbol
-// index, writes the resulting index to disk, and returns it.
+// Build indexes repo using the default automatic freshness mode.
 func Build(ctx context.Context, controlRoot string, repo workspace.Repository) (Index, error) {
-	repoRoot := controlRoot
-	if repo.RelativePath != "." {
-		repoRoot = filepath.Join(controlRoot, filepath.FromSlash(repo.RelativePath))
-	}
-	paths := []string{}
-	err := filepath.WalkDir(repoRoot, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if path != repoRoot && excludes[d.Name()] {
-				return filepath.SkipDir
-			}
-			if path != repoRoot && isNestedGitRoot(path) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if sourceExts[strings.ToLower(filepath.Ext(path))] {
-			paths = append(paths, path)
-		}
-		return nil
-	})
-	if err != nil {
-		return Index{}, err
-	}
-	sort.Strings(paths)
-	idx := Index{Version: 1, Repository: repo.RelativePath, BuiltAt: time.Now().UTC().Format(time.RFC3339), Files: map[string]FileState{}}
-	type result struct {
-		rel     string
-		state   FileState
-		symbols []Symbol
-		err     error
-	}
-	jobs := make(chan string)
-	results := make(chan result)
-	workers := runtime.GOMAXPROCS(0)
-	if workers > 8 {
-		workers = 8
-	}
-	if workers < 1 {
-		workers = 1
-	}
-	var wg sync.WaitGroup
-	for i := 0; i < workers; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			for p := range jobs {
-				select {
-				case <-ctx.Done():
-					results <- result{err: ctx.Err()}
-					return
-				default:
-				}
-				rel, _ := filepath.Rel(repoRoot, p)
-				rel = filepath.ToSlash(rel)
-				state, syms, e := indexFile(p, rel)
-				results <- result{rel: rel, state: state, symbols: syms, err: e}
-			}
-		}()
-	}
-	go func() {
-		for _, p := range paths {
-			jobs <- p
-		}
-		close(jobs)
-		wg.Wait()
-		close(results)
-	}()
-	for r := range results {
-		if r.err != nil {
-			return Index{}, r.err
-		}
-		idx.Files[r.rel] = r.state
-		idx.Symbols = append(idx.Symbols, r.symbols...)
-	}
-	sort.Slice(idx.Symbols, func(i, j int) bool {
-		if idx.Symbols[i].Path == idx.Symbols[j].Path {
-			return idx.Symbols[i].Line < idx.Symbols[j].Line
-		}
-		return idx.Symbols[i].Path < idx.Symbols[j].Path
-	})
-	if err := storage.WriteJSON(Path(controlRoot, repo), idx); err != nil {
-		return Index{}, err
-	}
-	return idx, nil
+	idx, _, err := BuildWithMode(ctx, controlRoot, repo, BuildAuto)
+	return idx, err
 }
 
-// indexFile reads the file at path, computes its SHA-256 digest and file
-// state, and parses it for symbols, returning the state and any found symbols.
-func indexFile(path, rel string) (FileState, []Symbol, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return FileState{}, nil, err
-	}
-	h := sha256.Sum256(b)
-	digest := hex.EncodeToString(h[:])
-	st, err := os.Stat(path)
-	if err != nil {
-		return FileState{}, nil, err
-	}
-	state := FileState{SHA256: digest, Size: st.Size(), MTimeNS: st.ModTime().UnixNano()}
-	syms, _ := parseSymbols(b, rel, digest)
-	return state, syms, nil
-}
-
-// BuildWorkspace builds an index for every included repository in reg,
-// returning a map of relative repository path to its built index.
-func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
-	out := map[string]Index{}
+// BuildWorkspaceWithMode builds every included repository using mode and
+// returns both the resulting index and deterministic build statistics.
+func BuildWorkspaceWithMode(ctx context.Context, root string, reg workspace.Registry, mode BuildMode) (map[string]WorkspaceBuildResult, error) {
+	out := map[string]WorkspaceBuildResult{}
 	for _, repo := range reg.Repositories {
 		if !repo.Included {
 			continue
 		}
-		idx, err := Build(ctx, root, repo)
+		idx, stats, err := BuildWithMode(ctx, root, repo, mode)
 		if err != nil {
 			return nil, fmt.Errorf("index %s: %w", repo.RelativePath, err)
 		}
-		out[repo.RelativePath] = idx
+		out[repo.RelativePath] = WorkspaceBuildResult{Index: idx, Stats: stats}
+	}
+	return out, nil
+}
+
+// BuildWorkspace preserves the pre-Stage-5 API while delegating freshness
+// decisions to automatic mode.
+func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
+	built, err := BuildWorkspaceWithMode(ctx, root, reg, BuildAuto)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]Index, len(built))
+	for rel, result := range built {
+		out[rel] = result.Index
 	}
 	return out, nil
 }

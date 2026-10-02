@@ -101,12 +101,16 @@ jobs:
         run: |
           go test ./...
           go build -o /tmp/ai-workflow-cgo-free ./cmd/ai-workflow
+      - name: Verify incremental freshness counters
+        run: go test ./internal/indexer -run '^TestIncrementalCounterContract$' -count=1
       - name: Run tagged parser pilot tests
         run: go test -tags treesitter ./internal/indexer -count=1
       - name: Vet tagged parser pilot
         run: go vet -tags treesitter ./internal/indexer
       - name: Measure parser pilot performance
         run: go test -tags treesitter ./internal/indexer -run '^$' -bench BenchmarkParserPilot -benchmem -benchtime=50x
+      - name: Measure incremental index freshness
+        run: go test ./internal/indexer -run '^$' -bench 'BenchmarkIndex(Full|Incremental)' -benchmem -benchtime=20x
       - name: Measure parser pilot binary size
         shell: bash
         run: |
