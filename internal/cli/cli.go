@@ -205,22 +205,37 @@ func repos(root string, args []string, out, errOut io.Writer) int {
 	}
 }
 
-// index implements the "index" subcommand: it builds indexes for every
-// repository in the workspace registry and prints a per-repository summary.
+// index implements the "index" subcommand with explicit freshness modes and
+// returns per-repository build statistics as JSON.
 func index(root string, args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("index", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	modeValue := fs.String("mode", string(indexer.BuildAuto), "index mode: auto, incremental, or full")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "index does not accept positional arguments")
+		return 2
+	}
+	mode := indexer.BuildMode(*modeValue)
+	if mode != indexer.BuildAuto && mode != indexer.BuildIncremental && mode != indexer.BuildFull {
+		fmt.Fprintf(errOut, "invalid index mode %q (want auto, incremental, or full)\n", *modeValue)
+		return 2
+	}
 	reg, err := workspace.Load(root)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	built, err := indexer.BuildWorkspace(context.Background(), root, reg)
+	built, err := indexer.BuildWorkspaceWithMode(context.Background(), root, reg, mode)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	summary := map[string]any{}
-	for k, v := range built {
-		summary[k] = map[string]int{"files": len(v.Files), "symbols": len(v.Symbols)}
+	summary := make(map[string]indexer.BuildStats, len(built))
+	for rel, result := range built {
+		summary[rel] = result.Stats
 	}
 	printJSON(out, summary)
 	return 0

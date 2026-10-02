@@ -41,6 +41,11 @@ type Index struct {
 	Symbols           []Symbol             `json:"symbols"`
 }
 
+type WorkspaceBuildResult struct {
+	Index Index      `json:"index"`
+	Stats BuildStats `json:"stats"`
+}
+
 // repoKey derives a filesystem-safe key for a repository's relative path,
 // used to namespace its on-disk index directory.
 func repoKey(rel string) string {
@@ -63,19 +68,33 @@ func Build(ctx context.Context, controlRoot string, repo workspace.Repository) (
 	return idx, err
 }
 
-// BuildWorkspace builds an index for every included repository in reg using
-// automatic freshness mode, preserving the pre-Stage-5 API.
-func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
-	out := map[string]Index{}
+// BuildWorkspaceWithMode builds every included repository using mode and
+// returns both the resulting index and deterministic build statistics.
+func BuildWorkspaceWithMode(ctx context.Context, root string, reg workspace.Registry, mode BuildMode) (map[string]WorkspaceBuildResult, error) {
+	out := map[string]WorkspaceBuildResult{}
 	for _, repo := range reg.Repositories {
 		if !repo.Included {
 			continue
 		}
-		idx, err := Build(ctx, root, repo)
+		idx, stats, err := BuildWithMode(ctx, root, repo, mode)
 		if err != nil {
 			return nil, fmt.Errorf("index %s: %w", repo.RelativePath, err)
 		}
-		out[repo.RelativePath] = idx
+		out[repo.RelativePath] = WorkspaceBuildResult{Index: idx, Stats: stats}
+	}
+	return out, nil
+}
+
+// BuildWorkspace preserves the pre-Stage-5 API while delegating freshness
+// decisions to automatic mode.
+func BuildWorkspace(ctx context.Context, root string, reg workspace.Registry) (map[string]Index, error) {
+	built, err := BuildWorkspaceWithMode(ctx, root, reg, BuildAuto)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]Index, len(built))
+	for rel, result := range built {
+		out[rel] = result.Index
 	}
 	return out, nil
 }
