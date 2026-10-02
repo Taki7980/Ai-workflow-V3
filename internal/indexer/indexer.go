@@ -18,6 +18,8 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
+const IndexVersion = 2
+
 var sourceExts = map[string]bool{".py": true, ".rs": true, ".js": true, ".jsx": true, ".ts": true, ".tsx": true, ".go": true, ".java": true, ".cs": true, ".cpp": true, ".cc": true, ".cxx": true, ".c": true, ".h": true, ".hpp": true, ".rb": true, ".php": true, ".swift": true, ".kt": true, ".scala": true, ".sql": true, ".vue": true, ".svelte": true}
 var excludes = map[string]bool{".git": true, "node_modules": true, "venv": true, ".venv": true, "dist": true, "build": true, "bin": true, "obj": true, "__pycache__": true, "ai-workspace": true, ".ai": true, ".agents": true}
 
@@ -35,11 +37,13 @@ type Symbol struct {
 	SHA256  string `json:"sha256"`
 }
 type Index struct {
-	Version    int                  `json:"version"`
-	Repository string               `json:"repository"`
-	BuiltAt    string               `json:"built_at"`
-	Files      map[string]FileState `json:"files"`
-	Symbols    []Symbol             `json:"symbols"`
+	Version           int                  `json:"version"`
+	Repository        string               `json:"repository"`
+	RepositoryID      string               `json:"repository_id"`
+	ExtractorRevision string               `json:"extractor_revision"`
+	BuiltAt           string               `json:"built_at"`
+	Files             map[string]FileState `json:"files"`
+	Symbols           []Symbol             `json:"symbols"`
 }
 
 // repoKey derives a filesystem-safe key for a repository's relative path,
@@ -89,7 +93,14 @@ func Build(ctx context.Context, controlRoot string, repo workspace.Repository) (
 		return Index{}, err
 	}
 	sort.Strings(paths)
-	idx := Index{Version: 1, Repository: repo.RelativePath, BuiltAt: time.Now().UTC().Format(time.RFC3339), Files: map[string]FileState{}}
+	idx := Index{
+		Version:           IndexVersion,
+		Repository:        repo.RelativePath,
+		RepositoryID:      repo.RepositoryID,
+		ExtractorRevision: currentExtractorRevision(),
+		BuiltAt:           time.Now().UTC().Format(time.RFC3339),
+		Files:             map[string]FileState{},
+	}
 	type result struct {
 		rel     string
 		state   FileState

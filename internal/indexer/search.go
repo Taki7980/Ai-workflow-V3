@@ -2,6 +2,7 @@ package indexer
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
@@ -17,16 +18,38 @@ type Hit struct {
 	Score      float64 `json:"score"`
 }
 
-// Load reads and decodes the on-disk index for repo within the workspace
-// rooted at controlRoot.
-func Load(controlRoot string, repo workspace.Repository) (Index, error) {
+func loadRaw(controlRoot string, repo workspace.Repository) (Index, error) {
 	b, err := os.ReadFile(Path(controlRoot, repo))
 	if err != nil {
 		return Index{}, err
 	}
 	var idx Index
-	err = json.Unmarshal(b, &idx)
-	return idx, err
+	if err := json.Unmarshal(b, &idx); err != nil {
+		return Index{}, err
+	}
+	return idx, nil
+}
+
+// Load reads and validates the on-disk index for repo within the workspace
+// rooted at controlRoot. Stale or incompatible index state is rejected.
+func Load(controlRoot string, repo workspace.Repository) (Index, error) {
+	idx, err := loadRaw(controlRoot, repo)
+	if err != nil {
+		return Index{}, err
+	}
+	if idx.Version != IndexVersion {
+		return Index{}, fmt.Errorf("unsupported index version %d (want %d)", idx.Version, IndexVersion)
+	}
+	if idx.Repository != repo.RelativePath {
+		return Index{}, fmt.Errorf("index repository %q does not match %q", idx.Repository, repo.RelativePath)
+	}
+	if idx.RepositoryID != repo.RepositoryID {
+		return Index{}, fmt.Errorf("index repository id mismatch for %s", repo.RelativePath)
+	}
+	if idx.ExtractorRevision != currentExtractorRevision() {
+		return Index{}, fmt.Errorf("index extractor revision %q does not match current %q", idx.ExtractorRevision, currentExtractorRevision())
+	}
+	return idx, nil
 }
 
 // Search ranks the symbols across all indexes against query using BM25 and
