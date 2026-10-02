@@ -17,7 +17,14 @@ const (
 	DefaultMaxOutput = 8 << 20
 	DefaultMaxStderr = 64 << 10
 	ProtocolVersion  = 1
+	// DefaultWaitDelay bounds how long Run waits for output pipes to close
+	// after the provider exits or is killed. Without it, a grandchild process
+	// that inherited stdout/stderr can keep Run blocked past its timeout.
+	DefaultWaitDelay = 2 * time.Second
 )
+
+// ErrOutputLimit is returned when a provider writes more stdout than allowed.
+var ErrOutputLimit = errors.New("provider output exceeded limit")
 
 type Spec struct {
 	Name           string        `json:"name"`
@@ -91,12 +98,16 @@ func Run(parent context.Context, s Spec, req Request) (Result, error) {
 	stderr.N = s.MaxStderrBytes
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
+	cmd.WaitDelay = DefaultWaitDelay
 	start := time.Now()
 	if err := cmd.Run(); err != nil {
 		if ctx.Err() != nil {
 			return Result{}, fmt.Errorf("provider %s: %w", s.Name, ctx.Err())
 		}
 		return Result{}, fmt.Errorf("provider %s failed: %w: %s", s.Name, err, stderr.String())
+	}
+	if stdout.overflow {
+		return Result{}, fmt.Errorf("provider %s: %w (%d bytes)", s.Name, ErrOutputLimit, s.MaxOutputBytes)
 	}
 	items, err := decodeItems(stdout.Bytes())
 	if err != nil {
