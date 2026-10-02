@@ -193,12 +193,17 @@ func BuildWithMode(ctx context.Context, controlRoot string, repo workspace.Repos
 
 func sourcePaths(repoRoot string) ([]string, error) {
 	paths := []string{}
-	err := filepath.WalkDir(repoRoot, func(path string, d os.DirEntry, walkErr error) error {
+	if err := filepath.WalkDir(repoRoot, sourcePathWalker(repoRoot, &paths)); err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+func sourcePathWalker(repoRoot string, paths *[]string) func(string, os.DirEntry, error) error {
+	return func(path string, d os.DirEntry, walkErr error) error {
 		if walkErr != nil {
-			if path == repoRoot {
-				return walkErr
-			}
-			return nil
+			return walkErr
 		}
 		if d.IsDir() {
 			if path != repoRoot && excludes[d.Name()] {
@@ -210,15 +215,10 @@ func sourcePaths(repoRoot string) ([]string, error) {
 			return nil
 		}
 		if sourceExts[strings.ToLower(filepath.Ext(path))] {
-			paths = append(paths, path)
+			*paths = append(*paths, path)
 		}
 		return nil
-	})
-	if err != nil {
-		return nil, err
 	}
-	sort.Strings(paths)
-	return paths, nil
 }
 
 func reusablePriorIndex(controlRoot string, repo workspace.Repository) (Index, string) {
