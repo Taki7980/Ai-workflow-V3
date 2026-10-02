@@ -2,10 +2,15 @@ package doctor
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"sort"
+	"strconv"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
+	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
@@ -21,8 +26,9 @@ type Report struct {
 
 // Run performs a set of workspace health checks (git availability, config
 // validity, repository discovery, and workspace root existence) and returns
-// an aggregated report. In strict mode, repository discovery must find at
-// least one repository to pass.
+// an aggregated report, followed by one "index:<repo>" freshness check per
+// included repository. In strict mode, repository discovery must find at
+// least one repository, and every included repository must have a fresh index.
 func Run(ctx context.Context, root string, strict bool) Report {
 	checks := []Check{}
 	_, err := exec.LookPath("git")
@@ -39,6 +45,7 @@ func Run(ctx context.Context, root string, strict bool) Report {
 	}
 	_, statErr := os.Stat(root)
 	checks = append(checks, Check{Name: "workspace-root", OK: statErr == nil, Detail: detail(statErr, "exists")})
+	checks = append(checks, indexChecks(ctx, root, strict)...)
 	ok := true
 	for _, c := range checks {
 		if !c.OK {
@@ -65,21 +72,39 @@ func repoDetail(err error, n int) string {
 	if n == 0 {
 		return "no Git repositories discovered"
 	}
-	return itoa(n) + " repository/repositories discovered"
+	return strconv.Itoa(n) + " repository/repositories discovered"
 }
 
-// itoa converts a non-negative integer n to its decimal string representation.
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
+// indexChecks reports index freshness for each included repository in the
+// registry. Missing or stale indexes fail only in strict mode. A workspace
+// without a registry yet (before setup) contributes no checks.
+func indexChecks(ctx context.Context, root string, strict bool) []Check {
+	reg, err := workspace.Load(root)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
 	}
-	b := []byte{}
-	for n > 0 {
-		b = append(b, byte('0'+n%10))
-		n /= 10
+	if err != nil {
+		return []Check{{Name: "registry", OK: false, Detail: err.Error()}}
 	}
-	for i, j := 0, len(b)-1; i < j; i, j = i+1, j-1 {
-		b[i], b[j] = b[j], b[i]
+	repos := append([]workspace.Repository(nil), reg.Repositories...)
+	sort.Slice(repos, func(i, j int) bool { return repos[i].RelativePath < repos[j].RelativePath })
+	checks := []Check{}
+	for _, repo := range repos {
+		if !repo.Included {
+			continue
+		}
+		check := Check{Name: "index:" + repo.RelativePath, OK: true, Detail: "fresh"}
+		f, err := indexer.CheckFreshness(ctx, root, repo)
+		switch {
+		case err != nil:
+			check.OK, check.Detail = false, err.Error()
+		case !f.Indexed:
+			check.OK, check.Detail = !strict, `not indexed; run "ai-workflow index"`
+		case f.Stale:
+			check.OK = !strict
+			check.Detail = fmt.Sprintf(`stale: %d added, %d modified, %d removed; run "ai-workflow index"`, f.Added, f.Modified, f.Removed)
+		}
+		checks = append(checks, check)
 	}
-	return string(b)
+	return checks
 }

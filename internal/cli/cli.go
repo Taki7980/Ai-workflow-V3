@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/doctor"
@@ -33,6 +34,9 @@ func Run(args []string, out, errOut io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "help", "-h", "--help":
+		usage(out)
+		return 0
 	case "--version", "version":
 		fmt.Fprintln(out, version.Version)
 		return 0
@@ -75,9 +79,26 @@ func extractRoot(args []string) (string, []string, error) {
 	return abs, out, err
 }
 
-// usage writes the top-level CLI usage summary to w.
+// usage writes the CLI usage summary to w.
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "AI Workflow V3\n\nUsage: ai-workflow [--root PATH] <setup|route|repos|index|context|doctor|version>")
+	fmt.Fprint(w, `AI Workflow V3
+
+Usage: ai-workflow [--root PATH] <command> [options]
+
+Commands:
+  setup [--discover-depth N] [--no-index] [--json]
+                              create config, discover repositories, build indexes
+  route "<task>"              classify a task into a lane and retrieval plan
+  repos list                  print the repository registry
+  repos refresh               rediscover repositories (keeps include/exclude decisions)
+  repos include <selector>    include a repository (path, id, remote, or name)
+  repos exclude <selector>    exclude a repository
+  index [--full]              incrementally update indexes (--full forces a rebuild)
+  context "<query>" [--lane answer|small|full] [--refresh]
+                              select budgeted context; flags stale hits
+  doctor [--strict]           validate the environment and index freshness
+  version                     print the version
+`)
 }
 
 // printJSON marshals v as indented JSON and writes it to w, followed by a newline.
@@ -120,12 +141,8 @@ func setup(root string, args []string, out, errOut io.Writer) int {
 		}
 		cfg = loaded
 	}
-	repos, err := workspace.Discover(context.Background(), root, *depth, cfg.Workspace.Discovery.AutoIncludeOnSetup)
+	repos, err := refreshRegistry(root, *depth, cfg.Workspace.Discovery.AutoIncludeOnSetup)
 	if err != nil {
-		fmt.Fprintln(errOut, err)
-		return 1
-	}
-	if err := workspace.Save(root, repos); err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
@@ -139,13 +156,38 @@ func setup(root string, args []string, out, errOut io.Writer) int {
 		}
 		indexes = len(built)
 	}
-	result := map[string]any{"root": root, "repositories": len(repos), "indexes": indexes, "config": config.Path(root), "registry": workspace.RegistryPath(root)}
+	active := 0
+	for _, repo := range repos {
+		if repo.Included {
+			active++
+		}
+	}
+	result := map[string]any{"root": root, "repositories": len(repos), "active": active, "indexes": indexes, "config": config.Path(root), "registry": workspace.RegistryPath(root)}
 	if *jsonOut {
 		printJSON(out, result)
 	} else {
-		fmt.Fprintf(out, "setup complete: %d repos, %d indexes\n", len(repos), indexes)
+		fmt.Fprintf(out, "setup complete: %d repos (%d active), %d indexes\n", len(repos), active, indexes)
 	}
 	return 0
+}
+
+// refreshRegistry rediscovers repositories under root and merges them with
+// the existing registry, preserving explicit include/exclude decisions.
+// includeNew controls whether repositories seen for the first time are active.
+func refreshRegistry(root string, depth int, includeNew bool) ([]workspace.Repository, error) {
+	previous, err := workspace.LoadOrEmpty(root)
+	if err != nil {
+		return nil, err
+	}
+	discovered, err := workspace.Discover(context.Background(), root, depth, includeNew)
+	if err != nil {
+		return nil, err
+	}
+	merged := workspace.Merge(previous.Repositories, discovered, includeNew)
+	if err := workspace.Save(root, merged); err != nil {
+		return nil, err
+	}
+	return merged, nil
 }
 
 // route implements the "route" subcommand: it classifies the given task and
@@ -170,7 +212,7 @@ func route(root string, args []string, out, errOut io.Writer) int {
 // current workspace registry and "refresh" to rediscover and re-save it.
 func repos(root string, args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "repos requires list or refresh")
+		fmt.Fprintln(errOut, "repos requires list, refresh, include, or exclude")
 		return 2
 	}
 	switch args[0] {
@@ -188,48 +230,75 @@ func repos(root string, args []string, out, errOut io.Writer) int {
 			fmt.Fprintln(errOut, err)
 			return 1
 		}
-		r, err := workspace.Discover(context.Background(), root, cfg.Workspace.Discovery.MaxDepth, cfg.Workspace.Discovery.AutoIncludeOnSetup)
+		// Like V2, a refresh never auto-activates newly discovered
+		// repositories; use "repos include" to opt them in.
+		r, err := refreshRegistry(root, cfg.Workspace.Discovery.MaxDepth, false)
 		if err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
-		}
-		if err := workspace.Save(root, r); err != nil {
 			fmt.Fprintln(errOut, err)
 			return 1
 		}
 		printJSON(out, r)
 		return 0
+	case "include", "exclude":
+		if len(args) != 2 {
+			fmt.Fprintf(errOut, "repos %s requires one repository selector\n", args[0])
+			return 2
+		}
+		repo, err := workspace.SetIncluded(root, args[1], args[0] == "include")
+		if err != nil {
+			fmt.Fprintln(errOut, err)
+			return 1
+		}
+		printJSON(out, repo)
+		return 0
 	default:
-		fmt.Fprintln(errOut, "repos requires list or refresh")
+		fmt.Fprintln(errOut, "repos requires list, refresh, include, or exclude")
 		return 2
 	}
 }
 
-// index implements the "index" subcommand: it builds indexes for every
-// repository in the workspace registry and prints a per-repository summary.
+// index implements the "index" subcommand: it incrementally updates the
+// index for every included repository and prints a per-repository summary of
+// file/symbol counts and the work performed.
 func index(root string, args []string, out, errOut io.Writer) int {
+	fs := flag.NewFlagSet("index", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	full := fs.Bool("full", false, "ignore the previous index and rebuild from scratch")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() != 0 {
+		fmt.Fprintln(errOut, "index takes no positional arguments")
+		return 2
+	}
 	reg, err := workspace.Load(root)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	built, err := indexer.BuildWorkspace(context.Background(), root, reg)
+	_, stats, err := indexer.BuildWorkspaceWithOptions(context.Background(), root, reg, indexer.BuildOptions{Full: *full})
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	summary := map[string]any{}
-	for k, v := range built {
-		summary[k] = map[string]int{"files": len(v.Files), "symbols": len(v.Symbols)}
-	}
-	printJSON(out, summary)
+	printJSON(out, stats)
 	return 0
 }
 
 // contextCmd implements the "context" subcommand: it loads the indexes for
-// all included repositories and prints the selected context hits for the query.
+// all included repositories, selects budgeted context hits for the query, and
+// flags hits whose files changed since they were indexed. With --refresh the
+// indexes are incrementally updated first, so results are never stale.
 func contextCmd(root string, args []string, out, errOut io.Writer) int {
-	if len(args) != 1 {
+	fs := flag.NewFlagSet("context", flag.ContinueOnError)
+	fs.SetOutput(errOut)
+	lane := fs.String("lane", "answer", "context budget lane: answer, small, or full")
+	refresh := fs.Bool("refresh", false, "incrementally update indexes before searching")
+	positional, err := parseInterspersed(fs, args)
+	if err != nil {
+		return 2
+	}
+	if len(positional) != 1 {
 		fmt.Fprintln(errOut, "context requires one query argument")
 		return 2
 	}
@@ -238,28 +307,92 @@ func contextCmd(root string, args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
+	budget, ok := laneBudget(cfg, *lane)
+	if !ok {
+		fmt.Fprintf(errOut, "unknown lane %q (want answer, small, or full)\n", *lane)
+		return 2
+	}
 	reg, err := workspace.Load(root)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
 	indexes := map[string]indexer.Index{}
+	repoByPath := map[string]workspace.Repository{}
 	for _, repo := range reg.Repositories {
 		if !repo.Included {
 			continue
 		}
-		idx, e := indexer.Load(root, repo)
-		if e == nil {
-			indexes[repo.RelativePath] = idx
+		var idx indexer.Index
+		var e error
+		if *refresh {
+			idx, e = indexer.Build(context.Background(), root, repo)
+		} else {
+			idx, e = indexer.Load(root, repo)
 		}
+		if e != nil {
+			fmt.Fprintf(errOut, "warning: no usable index for %s (%v); run \"ai-workflow index\"\n", repo.RelativePath, e)
+			continue
+		}
+		indexes[repo.RelativePath] = idx
+		repoByPath[repo.RelativePath] = repo
 	}
-	hits, err := selectContextHits(args[0], indexes, cfg)
+	hits, err := selectContextHitsWithBudget(positional[0], indexes, cfg, budget)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
+	stale := 0
+	for i := range hits {
+		repo, ok := repoByPath[hits[i].Repository]
+		if !ok {
+			continue
+		}
+		if indexes[hits[i].Repository].FileStale(indexer.RepoRoot(root, repo), hits[i].Path) {
+			hits[i].Stale = true
+			stale++
+		}
+	}
+	if stale > 0 {
+		fmt.Fprintf(errOut, "warning: %d hit(s) point at files changed since indexing; run \"ai-workflow index\" or pass --refresh\n", stale)
+	}
 	printJSON(out, hits)
 	return 0
+}
+
+// laneBudget returns the estimated-token context budget for lane.
+func laneBudget(cfg config.Config, lane string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(lane)) {
+	case "answer":
+		return cfg.Budgets.Answer.EstimatedTokens, true
+	case "small":
+		return cfg.Budgets.Small.EstimatedTokens, true
+	case "full":
+		return cfg.Budgets.Full.EstimatedTokens, true
+	default:
+		return 0, false
+	}
+}
+
+// parseInterspersed parses fs from args while allowing flags to appear after
+// positional arguments (e.g. `context "query" --refresh`), returning the
+// positional arguments in order. A literal "--" ends flag parsing.
+func parseInterspersed(fs *flag.FlagSet, args []string) ([]string, error) {
+	positional := []string{}
+	for {
+		if err := fs.Parse(args); err != nil {
+			return nil, err
+		}
+		rest := fs.Args()
+		if len(rest) == 0 {
+			return positional, nil
+		}
+		if len(args) > 0 && len(rest) < len(args) && args[len(args)-len(rest)-1] == "--" {
+			return append(positional, rest...), nil
+		}
+		positional = append(positional, rest[0])
+		args = rest[1:]
+	}
 }
 
 // estimateFileTokens estimates the token count for a file based on its byte
@@ -273,8 +406,14 @@ func estimateFileTokens(state indexer.FileState) int {
 
 // selectContextHits searches the given indexes for query and, when the
 // selector is enabled, applies MMR-based selection to fit within the
-// configured token budget; otherwise it returns the raw search hits.
+// answer-lane token budget; otherwise it returns the raw search hits.
 func selectContextHits(query string, indexes map[string]indexer.Index, cfg config.Config) ([]indexer.Hit, error) {
+	return selectContextHitsWithBudget(query, indexes, cfg, cfg.Budgets.Answer.EstimatedTokens)
+}
+
+// selectContextHitsWithBudget is selectContextHits with an explicit token
+// budget, used to honor the lane requested on the command line.
+func selectContextHitsWithBudget(query string, indexes map[string]indexer.Index, cfg config.Config, maxTokens int) ([]indexer.Hit, error) {
 	if !cfg.Context.Selector.Enabled {
 		return indexer.Search(query, indexes, cfg.Context.MaxResultsPerSource), nil
 	}
@@ -297,7 +436,7 @@ func selectContextHits(query string, indexes map[string]indexer.Index, cfg confi
 		})
 	}
 	selected, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{
-		MaxTokens:         cfg.Budgets.Answer.EstimatedTokens,
+		MaxTokens:         maxTokens,
 		MaxCandidates:     limit,
 		Lambda:            0.70,
 		MandatoryRequired: cfg.Context.Selector.MandatoryStructuralEvidence,
@@ -331,3 +470,4 @@ func doctorCmd(root string, args []string, out, errOut io.Writer) int {
 	}
 	return 0
 }
+
