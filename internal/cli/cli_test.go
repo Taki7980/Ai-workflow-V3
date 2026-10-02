@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"testing"
 
@@ -27,6 +28,15 @@ func writeContextWorkspace(t *testing.T, cfg config.Config, idx indexer.Index) s
 	if err := storage.WriteJSON(config.Path(root), cfg); err != nil {
 		t.Fatal(err)
 	}
+	current, err := indexer.Build(context.Background(), root, repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	idx.Version = current.Version
+	idx.Repository = current.Repository
+	idx.RepositoryID = current.RepositoryID
+	idx.ExtractorRevision = current.ExtractorRevision
+	idx.BuiltAt = current.BuiltAt
 	if err := storage.WriteJSON(indexer.Path(root, repo), idx); err != nil {
 		t.Fatal(err)
 	}
@@ -36,8 +46,6 @@ func writeContextWorkspace(t *testing.T, cfg config.Config, idx indexer.Index) s
 func TestContextCommandRetainsHitArraySchema(t *testing.T) {
 	cfg := config.Default()
 	idx := indexer.Index{
-		Version: 1,
-		Repository: ".",
 		Files: map[string]indexer.FileState{
 			"service.go": {Size: 40},
 		},
@@ -64,8 +72,6 @@ func TestContextCommandRespectsAnswerLaneTokenBudget(t *testing.T) {
 	cfg := config.Default()
 	cfg.Budgets.Answer.EstimatedTokens = 5
 	idx := indexer.Index{
-		Version: 1,
-		Repository: ".",
 		Files: map[string]indexer.FileState{
 			"a.go": {Size: 20},
 			"b.go": {Size: 20},
@@ -101,8 +107,6 @@ func TestSelectContextHitsReturnsSelectorError(t *testing.T) {
 	cfg.Context.Selector.MaxSelectorCandidates = 0
 	indexes := map[string]indexer.Index{
 		".": {
-			Version: 1,
-			Repository: ".",
 			Files: map[string]indexer.FileState{"a.go": {Size: 4}},
 			Symbols: []indexer.Symbol{{Name: "Payment", Kind: "function", Path: "a.go", Line: 1}},
 		},
