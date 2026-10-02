@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -56,6 +58,8 @@ func TestHelperProvider(t *testing.T) {
 		if err := cmd.Start(); err != nil {
 			os.Exit(9)
 		}
+		// Record the grandchild so the test can reap it during cleanup.
+		_ = os.WriteFile("orphan.pid", []byte(strconv.Itoa(cmd.Process.Pid)), 0o600)
 		fmt.Print(`[]`)
 	}
 	os.Exit(0)
@@ -132,8 +136,19 @@ func TestRunTimesOut(t *testing.T) {
 func TestRunDoesNotWaitForOrphanedGrandchild(t *testing.T) {
 	spec := helperSpec("orphan")
 	start := time.Now()
-	_, _ = Run(context.Background(), spec, Request{Root: t.TempDir()})
-	if elapsed := time.Since(start); elapsed > DefaultWaitDelay+5*time.Second {
+	root := t.TempDir()
+	_, _ = Run(context.Background(), spec, Request{Root: root})
+	elapsed := time.Since(start)
+	// Kill the grandchild before TempDir cleanup: Windows cannot remove its
+	// working directory or the test binary while it is still running.
+	if b, err := os.ReadFile(filepath.Join(root, "orphan.pid")); err == nil {
+		if pid, err := strconv.Atoi(string(b)); err == nil {
+			if p, err := os.FindProcess(pid); err == nil {
+				t.Cleanup(func() { _ = p.Kill(); _, _ = p.Wait() })
+			}
+		}
+	}
+	if elapsed > DefaultWaitDelay+5*time.Second {
 		t.Fatalf("Run blocked on orphaned grandchild for %v", elapsed)
 	}
 }
