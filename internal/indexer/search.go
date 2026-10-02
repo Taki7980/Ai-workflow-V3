@@ -3,6 +3,7 @@ package indexer
 import (
 	"encoding/json"
 	"os"
+	"sort"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
@@ -15,6 +16,9 @@ type Hit struct {
 	Kind       string  `json:"kind"`
 	Symbol     string  `json:"symbol"`
 	Score      float64 `json:"score"`
+	// Stale is set when the file behind this hit changed on disk after it was
+	// indexed. Omitted for fresh hits so the established schema is unchanged.
+	Stale bool `json:"stale,omitempty"`
 }
 
 // Load reads and decodes the on-disk index for repo within the workspace
@@ -31,11 +35,18 @@ func Load(controlRoot string, repo workspace.Repository) (Index, error) {
 
 // Search ranks the symbols across all indexes against query using BM25 and
 // returns up to limit hits (defaulting to 6 when limit is non-positive),
-// ordered by descending relevance score.
+// ordered by descending relevance score. Repositories are visited in sorted
+// order so equal-score ties resolve identically on every run.
 func Search(query string, indexes map[string]Index, limit int) []Hit {
 	texts := []string{}
 	values := []Hit{}
-	for repo, idx := range indexes {
+	repos := make([]string, 0, len(indexes))
+	for repo := range indexes {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+	for _, repo := range repos {
+		idx := indexes[repo]
 		for _, s := range idx.Symbols {
 			texts = append(texts, s.Name+" "+s.Kind+" "+s.Path)
 			values = append(values, Hit{Repository: repo, Path: s.Path, Line: s.Line, Kind: s.Kind, Symbol: s.Name})
