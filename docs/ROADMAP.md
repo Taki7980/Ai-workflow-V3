@@ -3,10 +3,10 @@
 The active implementation tracker is GitHub issue #2. The order below is intentionally dependency-driven.
 
 1. Foundation and compatibility harness — done
-2. Retrieval benchmark/evaluation baseline — in progress
-3. MMR + budget-aware context selection
-4. Parser abstraction + Tree-sitter pilot
-5. Incremental index freshness
+2. Retrieval benchmark/evaluation baseline — done
+3. MMR + budget-aware context selection — done
+4. Parser abstraction + Tree-sitter pilot — done (pilot behind `treesitter` tag)
+5. Incremental index freshness — done
 6. Structural retrieval adapter + SCIP path
 7. Optional semantic retriever + RRF evaluation
 8. Provider execution hardening / optional stronger sandbox

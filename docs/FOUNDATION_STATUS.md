@@ -12,11 +12,14 @@ This repository contains the first native V3 migration slice.
 - V2-compatible credential-free remote identity and repository ID semantics;
 - V2-shaped repository registry (`version`, `review_required`, `repository_id`);
 - per-repository SHA-256 source index;
+- incremental indexing with stat fast-path, racy-clean protection, and parser-set fingerprinting;
+- query-time stale-hit flagging (`context`), `context --refresh`, and per-repository index freshness in `doctor`;
+- V2-parity registry merge that preserves include/exclude decisions, plus `repos include|exclude`;
 - Go AST symbol indexing with deterministic fallback symbol extraction;
 - nested repository exclusion during parent-repository indexing;
 - BM25 and reciprocal-rank-fusion primitives;
 - bounded external provider process protocol foundation;
-- `setup`, `route`, `repos list`, `repos refresh`, `index`, `context`, `doctor`, `version`;
+- `setup`, `route`, `repos list|refresh|include|exclude`, `index [--full]`, `context [--lane] [--refresh]`, `doctor`, `version`, `help`;
 - Linux/macOS/Windows CI matrix for Go 1.26 and Go 1.27;
 - CodeQL workflow.
 

@@ -26,12 +26,22 @@ V2 proved the control-plane model. V3 changes the runtime and internal architect
 ai-workflow setup
 ai-workflow route "fix payment validation"
 ai-workflow repos list
-ai-workflow repos refresh
-ai-workflow index
-ai-workflow context "DuplicateCharge"
-ai-workflow doctor --strict
+ai-workflow repos refresh                 # keeps your include/exclude decisions
+ai-workflow repos exclude admin-panel     # by path, repository id, remote, or name
+ai-workflow repos include admin-panel
+ai-workflow index                         # incremental; only changed files are parsed
+ai-workflow index --full                  # force a full rebuild
+ai-workflow context "DuplicateCharge"     # stale hits are flagged
+ai-workflow context "DuplicateCharge" --refresh --lane small
+ai-workflow doctor --strict               # fails on missing or stale indexes
 ai-workflow version
 ```
+
+### Index freshness
+
+`index` reuses the previous index: files whose size and mtime are unchanged are not read, touched-but-identical files keep their cached symbols, and only new or modified files are parsed. Files modified within two seconds of the last scan are always re-hashed (Git's "racily clean" rule). A no-op `index` writes nothing.
+
+`context` marks any hit whose file changed since indexing with `"stale": true` and warns on stderr; `--refresh` updates indexes before searching. See [`docs/superpowers/specs/2026-10-02-incremental-index-freshness-design.md`](docs/superpowers/specs/2026-10-02-incremental-index-freshness-design.md).
 
 A project can use a non-Git parent directory:
 
@@ -50,7 +60,7 @@ V3 targets the supported Go toolchain line beginning with Go 1.26. The CI releas
 
 ```bash
 go test ./...
-go build -o bin/ai-workflow ./cmd/ai-workflow
+make build        # static binary with embedded version at bin/ai-workflow
 ```
 
 ## Architecture
