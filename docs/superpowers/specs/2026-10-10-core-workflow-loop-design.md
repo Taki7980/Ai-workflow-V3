@@ -86,7 +86,7 @@ fraction = high_sufficiency_fraction if pre_score >= 0.86
 limit = min(lane_budget, max(1, int(lane_budget * fraction)))   // adaptive_budget.enabled=false → lane_budget
 ```
 
-`pre_score` = sufficiency over all candidates before selection (V2 order). Lane budget = `budgets.<lane>.estimated_tokens` (fixes current `context` command, which always uses the answer budget).
+`pre_score` = sufficiency over all candidates before selection (V2 order). Lane budget = `budgets.<lane>.estimated_tokens`. The existing `context` command is unchanged in this PR (its answer-budget behavior is pinned by the selector benchmark).
 
 Token estimate: `ceil(len(text)/4)` on the item text actually emitted (replaces whole-file size estimate for brief; `context` keeps its existing behavior).
 
