@@ -4,7 +4,7 @@
 
 AI Workflow V3 is a clean reimplementation of [AI Workflow Control Plane V2](https://github.com/Taki7980/ai-workflow-control-plane-v2). It keeps V2's core idea — **escalate capability, not context volume** — while making the runtime easier to install, faster to start, safer to distribute, and simpler to maintain across Windows, Linux, macOS, and WSL.
 
-> Status: early V3 foundation. V2 remains the behavioral reference until parity gates are passed.
+> Status: V3 covers the daily V2 loop (setup, brief, handoff, verify, compress, memory) with contract parity enforced by the differential harness. Structural (CRG/SCIP) adapters and semantic retrieval are still in progress; V2 remains the behavioral reference for them.
 
 ## Why V3 exists
 
@@ -20,18 +20,39 @@ V2 proved the control-plane model. V3 changes the runtime and internal architect
 - **Hardened external-provider execution**: no shell, bounded output, timeouts, constrained environment.
 - **Compatibility-first migration**: V2 inputs and behavior become executable fixtures, not assumptions.
 
-## Current commands
+## Quick start
+
+```bash
+cd path/to/your-project
+ai-workflow setup                                        # discover repos, write config, build indexes
+ai-workflow brief "refactor payment retry" --format prompt
+# ... agent works; do not edit while EVIDENCE_STATE=requires_exploration ...
+ai-workflow verify --check "go test ./..." --strict      # checks run without a shell + handoff validation
+ai-workflow memory add --type verified-fix --keywords "payment retry" \
+  --summary "retry uses jittered backoff" --file svc/retry.go
+```
+
+`brief` emits the V2 agent contract: lane/risk, evidence state (`sufficient`, `requires_exploration`, `abstain`), workspace fingerprint, Superpowers skill sequence, CRG plan, agent slots, budget, and bounded fresh context (index hits with source windows, targeted source matches, durable memory). Formats: `json` (default), `markdown`, `prompt`.
+
+## Commands
 
 ```bash
 ai-workflow setup
+ai-workflow brief "fix payment validation" [--format json|markdown|prompt] [--write-handoff] [--changed-file F]...
 ai-workflow route "fix payment validation"
+ai-workflow context "DuplicateCharge"
+ai-workflow handoff                       # validate ai-workspace/handoff/HANDOFF.md
+ai-workflow verify --check "go test ./..." [--strict]
+ai-workflow compress [--file F] [--max-lines 80] [--max-chars 12000] [--prefer-rtk] < noisy.log
+ai-workflow memory add|search|list|prune|export|import
 ai-workflow repos list
 ai-workflow repos refresh
 ai-workflow index
-ai-workflow context "DuplicateCharge"
 ai-workflow doctor --strict
 ai-workflow version
 ```
+
+Migrating V2 memory: run `ai-workflow memory export memory.jsonl` with V2, then `ai-workflow memory import memory.jsonl` with V3.
 
 A project can use a non-Git parent directory:
 

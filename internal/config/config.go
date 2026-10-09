@@ -65,6 +65,22 @@ type Context struct {
 	Sufficiency         Sufficiency        `json:"sufficiency"`
 	AdaptiveBudget      AdaptiveBudget     `json:"adaptive_budget"`
 	Selector            Selector           `json:"selector"`
+	SelectiveRetrieval  SelectiveRetrieval `json:"selective_retrieval"`
+	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
+	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+type SelectiveRetrieval struct {
+	Enabled         bool    `json:"enabled"`
+	MinimumCoverage float64 `json:"minimum_coverage"`
+}
+
+// Snippet returns the brief source-window radius in lines, defaulting to 6.
+func (c Context) Snippet() int {
+	if c.SnippetLines <= 0 {
+		return 6
+	}
+	return c.SnippetLines
 }
 
 type Discovery struct {
@@ -81,9 +97,23 @@ type Workspace struct {
 	Discovery       Discovery `json:"discovery"`
 }
 
+type OrchestrationBudget struct {
+	MaxAgentSlots      int `json:"max_agent_slots"`
+	MaxCRGCalls        int `json:"max_crg_calls"`
+	MaxGraphDepth      int `json:"max_graph_depth"`
+	ReviewPasses       int `json:"review_passes"`
+	VerificationPasses int `json:"verification_passes"`
+}
+
+type Superpowers struct {
+	Mode string `json:"mode"`
+}
+
 type Execution struct {
-	PreferSuperpowersForFull bool `json:"prefer_superpowers_for_full"`
-	NativeFallback           bool `json:"native_fallback"`
+	PreferSuperpowersForFull bool                `json:"prefer_superpowers_for_full"`
+	NativeFallback           bool                `json:"native_fallback"`
+	Superpowers              Superpowers         `json:"superpowers"`
+	OrchestrationBudget      OrchestrationBudget `json:"orchestration_budget"`
 }
 
 type Handoff struct {
@@ -135,9 +165,14 @@ func Default() Config {
 			Sufficiency:         Sufficiency{Threshold: .72},
 			AdaptiveBudget:      AdaptiveBudget{Enabled: true, HighSufficiencyFraction: .45, MediumFraction: .70, MinimumChars: 900},
 			Selector:            Selector{Enabled: true, TightBudgetFraction: .30, MandatoryStructuralEvidence: true, MaxSelectorCandidates: 200},
+			SelectiveRetrieval:  SelectiveRetrieval{Enabled: true, MinimumCoverage: .15},
 		},
 		Workspace: Workspace{Roots: []string{}, MaxRoots: 4, Registry: "ai-workspace/config/repositories.json", RepositoryGraph: "ai-workspace/config/repository-graph.json", Discovery: Discovery{MaxDepth: 8, RequireAcceptance: false, AutoIncludeOnSetup: true}},
-		Execution: Execution{PreferSuperpowersForFull: true, NativeFallback: true},
+		Execution: Execution{
+			PreferSuperpowersForFull: true, NativeFallback: true,
+			Superpowers:         Superpowers{Mode: "auto"},
+			OrchestrationBudget: OrchestrationBudget{MaxAgentSlots: 4, MaxCRGCalls: 6, MaxGraphDepth: 3, ReviewPasses: 2, VerificationPasses: 2},
+		},
 		Handoff:   Handoff{MaxLines: 30},
 		Memory:    Memory{MaxResults: 5, MinimumConfidence: .55},
 		Models:    Models{Answer: "fast", Small: "fast", FullMedium: "standard", FullHigh: "capable"},

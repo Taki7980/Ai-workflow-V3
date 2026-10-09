@@ -22,6 +22,7 @@ type Cases struct {
 	RepositoryID    []RepositoryIDCase   `json:"repository_id"`
 	MMR             []MMRCase            `json:"mmr"`
 	ConfigSnapshot  bool                 `json:"config_snapshot"`
+	WorkflowCases
 }
 
 type RoutingCase struct {
@@ -71,6 +72,7 @@ type Fixture struct {
 	RepositoryID   map[string]string              `json:"repository_id"`
 	MMR            map[string][]string            `json:"mmr"`
 	Config         map[string]any                 `json:"config"`
+	WorkflowFixture
 }
 
 type SourceRef struct {
@@ -215,6 +217,10 @@ func Run(casesPath, fixturePath, lockPath string) (Report, error) {
 			return Report{}, err
 		}
 		add("config", "default_config", expected, actual)
+	}
+
+	if err := runWorkflow(cases.WorkflowCases, fixture.WorkflowFixture, cfg, add); err != nil {
+		return Report{}, err
 	}
 
 	return report, nil

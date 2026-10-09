@@ -3,7 +3,9 @@ package indexer
 import (
 	"encoding/json"
 	"fmt"
+	"maps"
 	"os"
+	"slices"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
@@ -58,8 +60,9 @@ func Load(controlRoot string, repo workspace.Repository) (Index, error) {
 func Search(query string, indexes map[string]Index, limit int) []Hit {
 	texts := []string{}
 	values := []Hit{}
-	for repo, idx := range indexes {
-		for _, s := range idx.Symbols {
+	// Sorted repositories make BM25 tie order deterministic across runs.
+	for _, repo := range slices.Sorted(maps.Keys(indexes)) {
+		for _, s := range indexes[repo].Symbols {
 			texts = append(texts, s.Name+" "+s.Kind+" "+s.Path)
 			values = append(values, Hit{Repository: repo, Path: s.Path, Line: s.Line, Kind: s.Kind, Symbol: s.Name})
 		}

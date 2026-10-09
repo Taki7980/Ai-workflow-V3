@@ -1,216 +1,57 @@
 {
-  "schema_version": 1,
-  "source": {
-    "repository": "Taki7980/ai-workflow-control-plane-v2",
-    "commit": "554302c378f69809fbd09ff001eb7cfdb9af5005"
+  "brief_format": {
+    "markdown_empty": "# Brief: fix \"quoted\" \u00f1 <tag> & co\n**Lane**: full | **Risk**: high | **Confidence**: 0.62 | **Model tier**: capable\n**Retrieval**: mixed | **Evidence**: requires_exploration\n**Execution**: native \u2014 Use native Plan -> Build -> Review fallback.\n**Superpowers**: none\n**CRG**: none\n**Workspace state**: abc123\n**Budget**: 6000 est. tokens | 1200 output\n**Changed files**: none detected\n\n## Context\n\n(no context gathered)",
+    "markdown_full": "# Brief: refactor payment retry\n**Lane**: full | **Risk**: high | **Confidence**: 0.88 | **Model tier**: capable\n**Retrieval**: mixed | **Evidence**: requires_exploration\n**Execution**: superpowers \u2014 Use native Plan -> Build -> Review fallback.\n**Superpowers**: writing-plans, verification-before-completion\n**CRG**: get_minimal_context_tool\n**Workspace state**: abc123\n**Budget**: 6000 est. tokens | 1200 output\n**Changed files**: svc/pay.go\n\n## Context\n\n{\"symbol\":\"RetryPayment\"}\nsvc/pay.go:10: retry()",
+    "prompt_empty_unicode": "[TASK] fix \"quoted\" \u00f1 <tag> & co\n[LANE] full [RISK] high [CONFIDENCE] 0.62 [MODEL_TIER] capable\n[RETRIEVAL_INTENT] mixed\n[EVIDENCE_STATE] requires_exploration\n[WORKSPACE_FINGERPRINT] abc123\n[EXECUTION] native\n[SUPERPOWERS_SKILLS] none\n[CRG_PLAN] none\n[AGENT_SLOTS] 3\n[HINT] Use native Plan -> Build -> Review fallback.\n[BUDGET] context=6000tok output=1200tok\n[CHANGED_FILES] none\n[INVARIANTS] preserve existing contracts unless task explicitly changes them",
+    "prompt_full": "[TASK] refactor payment retry\n[LANE] full [RISK] high [CONFIDENCE] 0.88 [MODEL_TIER] capable\n[RETRIEVAL_INTENT] mixed\n[EVIDENCE_STATE] requires_exploration\n[WORKSPACE_FINGERPRINT] abc123\n[EXECUTION] superpowers\n[SUPERPOWERS_SKILLS] writing-plans, verification-before-completion\n[CRG_PLAN] get_minimal_context_tool\n[AGENT_SLOTS] 3\n[HINT] Use native Plan -> Build -> Review fallback.\n[BUDGET] context=6000tok output=1200tok\n[CHANGED_FILES] svc/pay.go\n[CONTEXT_START]\n{\"symbol\":\"RetryPayment\"}\nsvc/pay.go:10: retry()\n[CONTEXT_END]\n[INVARIANTS] preserve existing contracts unless task explicitly changes them"
   },
-  "routing": {
-    "answer_explanation": {
-      "lane": "answer",
-      "risk": "low",
-      "reasons": [
-        "read-only question/explanation"
-      ],
-      "structural_context": false,
-      "confidence": 0.96
-    },
-    "sensitive_read_only": {
-      "lane": "answer",
-      "risk": "low",
-      "reasons": [
-        "read-only question/explanation"
-      ],
-      "structural_context": false,
-      "confidence": 0.96
-    },
-    "high_risk_payment_auth": {
-      "lane": "full",
-      "risk": "high",
-      "reasons": [
-        "high-risk change keyword: auth, payment"
-      ],
-      "structural_context": false,
-      "confidence": 0.99
-    },
-    "high_risk_authentication": {
-      "lane": "full",
-      "risk": "high",
-      "reasons": [
-        "high-risk change keyword: authentication"
-      ],
-      "structural_context": false,
-      "confidence": 0.99
-    },
-    "high_risk_payment_schema": {
-      "lane": "full",
-      "risk": "high",
-      "reasons": [
-        "high-risk change keyword: payment, migration, schema"
-      ],
-      "structural_context": false,
-      "confidence": 0.99
-    },
-    "high_risk_deploy_contract": {
-      "lane": "full",
-      "risk": "high",
-      "reasons": [
-        "high-risk change keyword: deploy, public api, contract change"
-      ],
-      "structural_context": false,
-      "confidence": 0.99
-    },
-    "small_known_file": {
-      "lane": "small",
-      "risk": "low",
-      "reasons": [
-        "bounded low-complexity edit",
-        "explicit file scope: 1 file(s)"
-      ],
-      "structural_context": false,
-      "confidence": 0.9
-    },
-    "structural_blast_radius": {
-      "lane": "full",
-      "risk": "medium",
-      "reasons": [
-        "multi-hop/structural context requested"
-      ],
-      "structural_context": true,
-      "confidence": 0.94
-    },
-    "author_not_auth": {
-      "lane": "answer",
-      "risk": "low",
-      "reasons": [
-        "read-only question/explanation"
-      ],
-      "structural_context": false,
-      "confidence": 0.88
-    },
-    "unbounded_mutation": {
-      "lane": "full",
-      "risk": "medium",
-      "reasons": [
-        "implementation scope not safely bounded"
-      ],
-      "structural_context": false,
-      "confidence": 0.78
-    },
-    "ambiguous_defaults_full": {
-      "lane": "full",
-      "risk": "medium",
-      "reasons": [
-        "ambiguous task defaults to safe full-lane planning"
-      ],
-      "structural_context": false,
-      "confidence": 0.62
-    }
-  },
-  "retrieval": {
-    "exact_identifier": {
-      "intent": "exact",
-      "use_lexical": true,
-      "use_semantic": false,
-      "use_structural": false,
-      "reason": "exact identifier/path/endpoint signal"
-    },
-    "semantic_paraphrase": {
-      "intent": "semantic",
-      "use_lexical": true,
-      "use_semantic": true,
-      "use_structural": false,
-      "reason": "natural-language semantic intent"
-    },
-    "structural_exact_anchor": {
-      "intent": "structural",
-      "use_lexical": true,
-      "use_semantic": false,
-      "use_structural": true,
-      "reason": "structural relationship requested",
-      "structural_patterns": [
-        "callers_of"
-      ]
-    },
-    "structural_without_anchor": {
-      "intent": "mixed",
-      "use_lexical": true,
-      "use_semantic": true,
-      "use_structural": true,
-      "reason": "structural relationship needs entry-point discovery",
-      "structural_patterns": [
-        "impact"
-      ]
-    },
-    "callees_exact_anchor": {
-      "intent": "structural",
-      "use_lexical": true,
-      "use_semantic": false,
-      "use_structural": true,
-      "reason": "structural relationship requested",
-      "structural_patterns": [
-        "callees_of"
-      ]
-    },
-    "references_exact_anchor": {
-      "intent": "structural",
-      "use_lexical": true,
-      "use_semantic": false,
-      "use_structural": true,
-      "reason": "structural relationship requested",
-      "structural_patterns": [
-        "references_to"
-      ]
-    },
-    "semantic_and_exact": {
-      "intent": "mixed",
-      "use_lexical": true,
-      "use_semantic": true,
-      "use_structural": false,
-      "reason": "identifier and semantic intent both present"
-    },
-    "ambiguous_answer_query": {
-      "intent": "mixed",
-      "use_lexical": true,
-      "use_semantic": true,
-      "use_structural": false,
-      "reason": "read-only query with ambiguous retrieval intent"
-    },
-    "bounded_default": {
-      "intent": "exact",
-      "use_lexical": true,
-      "use_semantic": false,
-      "use_structural": false,
-      "reason": "bounded deterministic default"
-    }
-  },
-  "remote_identity": {
-    "https_credentials": "example.com/Taki7980/Repo",
-    "scp_remote": "github.com/Taki7980/Repo",
-    "file_url": "opaque:e4461b48f1a31efa",
-    "empty": null
-  },
-  "repository_id": {
-    "root_without_remote": "be4df980feef21cb8e2f9f7cfdf9e2fc298c9f92d48fba92de1f8cc7bb18725d",
-    "backend_remote": "2cc8ed09132fc2296b0e0bd30236e9d17500bdb7802b360610ecb5dc9fc2c5be",
-    "case_preserving_remote": "bd3aac64be9b9043343ef457df7a89833b6a41af8ddfa5f0c78e5c18f434365d"
+  "compress": {
+    "char_cap": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n... [CHARACTER CAP REACHED]\n",
+    "crlf_and_trailing_space": "one  \n... [1 LINES OMITTED] ...\none  \ntwo\n",
+    "empty": "",
+    "line_cap": "l0\nl1\nl2\nl3\nl4\nl5\nl6\nl7\nl8\nl9\nl10\nl11\nl12\nl13\nl14\nl15\nl16\nl17\nl18\nl19\nl20\nl21\nl22\nl23\nl24\nl25\nl26\nl27\nl28\nl29\nl30\nl31\nl32\nl33\nl34\nl35\nl36\nl37\nl38\nl39\nl40\nl41\nl42\nl43\nl44\nl45\nl46\nl47\nl48\nl49\nl50\nl51\nl52\nl53\nl54\nl55\nl56\nl57\nl58\nl59\n... [20 LINES OMITTED] ...\nl80\nl81\nl82\nl83\nl84\nl85\nl86\nl87\nl88\nl89\nl90\nl91\nl92\nl93\nl94\nl95\nl96\nl97\nl98\nl99\n",
+    "short": "a\nb\n",
+    "unicode_char_cap": "\u00f1\u00f1\u00f1\u00f1\u00f1\u00f1\u00f1\u00f1\u00f1\u00f1\n... [CHARACTER CAP REACHED]\n"
   },
   "config": {
-    "version": 2,
     "budgets": {
       "answer": {
         "estimated_tokens": 1200,
         "output_tokens": 450
       },
-      "small": {
-        "estimated_tokens": 2500,
-        "output_tokens": 700
-      },
       "full": {
         "estimated_tokens": 6000,
         "output_tokens": 1200
+      },
+      "small": {
+        "estimated_tokens": 2500,
+        "output_tokens": 700
       }
     },
     "classifier": {
+      "answer_keywords": [
+        "explain",
+        "what is",
+        "how does",
+        "why does",
+        "compare",
+        "difference",
+        "where is",
+        "show me",
+        "understand"
+      ],
+      "full_keywords": [
+        "refactor",
+        "architecture",
+        "multi-file",
+        "cross-cutting",
+        "end-to-end",
+        "redesign",
+        "performance",
+        "distributed",
+        "integration",
+        "implement feature"
+      ],
       "high_risk_keywords": [
         "auth",
         "authentication",
@@ -233,29 +74,6 @@
         "credential",
         "secret"
       ],
-      "full_keywords": [
-        "refactor",
-        "architecture",
-        "multi-file",
-        "cross-cutting",
-        "end-to-end",
-        "redesign",
-        "performance",
-        "distributed",
-        "integration",
-        "implement feature"
-      ],
-      "answer_keywords": [
-        "explain",
-        "what is",
-        "how does",
-        "why does",
-        "compare",
-        "difference",
-        "where is",
-        "show me",
-        "understand"
-      ],
       "small_keywords": [
         "rename",
         "typo",
@@ -268,16 +86,17 @@
       ]
     },
     "context": {
-      "max_results_per_source": 6,
-      "source_shares": {
-        "hot_cache": 0.15,
-        "lightweight": 0.3,
-        "crg": 0.4,
-        "source_fallback": 0.15
+      "adaptive_budget": {
+        "enabled": true,
+        "high_sufficiency_fraction": 0.45,
+        "medium_sufficiency_fraction": 0.7,
+        "minimum_chars": 900
       },
       "crg": {
-        "mode": "auto",
+        "changed_files_threshold": 3,
         "min_lane": "full",
+        "min_source_files": 250,
+        "mode": "auto",
         "structural_keywords": [
           "caller",
           "callee",
@@ -291,49 +110,17 @@
           "refactor",
           "what breaks",
           "affected"
-        ],
-        "min_source_files": 250,
-        "changed_files_threshold": 3
+        ]
       },
-      "scip": {
-        "mode": "auto"
-      },
-      "semantic": {
-        "mode": "auto",
-        "provider_id": "builtin-local",
-        "command": "",
-        "timeout_seconds": 8,
-        "max_results": 6,
-        "max_output_bytes": 8388608,
-        "env_allowlist": []
+      "deployment": {
+        "auto_rollback": true,
+        "enabled": false,
+        "incident_bundles": true,
+        "signing_key_env": "AI_WORKFLOW_POLICY_SIGNING_KEY",
+        "state_path": "ai-workspace/generated/learning/deployment/active.json"
       },
       "external_retrievers": [],
-      "sufficiency": {
-        "threshold": 0.72
-      },
-      "selective_retrieval": {
-        "enabled": true,
-        "minimum_coverage": 0.15
-      },
-      "adaptive_budget": {
-        "enabled": true,
-        "high_sufficiency_fraction": 0.45,
-        "medium_sufficiency_fraction": 0.7,
-        "minimum_chars": 900
-      },
-      "selector": {
-        "enabled": true,
-        "tight_budget_fraction": 0.3,
-        "mandatory_structural_evidence": true,
-        "max_selector_candidates": 200
-      },
-      "telemetry": {
-        "mode": "mutations"
-      },
       "learning": {
-        "mode": "off",
-        "kill_switch": false,
-        "exploration_probability": 0.05,
         "allowed_risks": [
           "low"
         ],
@@ -345,59 +132,68 @@
           "rrf_mmr_050",
           "rrf_mmr_075",
           "rrf_mmr_090"
-        ]
+        ],
+        "exploration_probability": 0.05,
+        "kill_switch": false,
+        "mode": "off"
       },
-      "deployment": {
-        "enabled": false,
-        "state_path": "ai-workspace/generated/learning/deployment/active.json",
-        "signing_key_env": "AI_WORKFLOW_POLICY_SIGNING_KEY",
-        "auto_rollback": true,
-        "incident_bundles": true
-      },
+      "max_results_per_source": 6,
       "production": {
+        "busy_timeout_ms": 5000,
         "enabled": false,
-        "sqlite_path": "ai-workspace/generated/learning/production/events.sqlite3",
-        "busy_timeout_ms": 5000
+        "sqlite_path": "ai-workspace/generated/learning/production/events.sqlite3"
+      },
+      "scip": {
+        "mode": "auto"
+      },
+      "selective_retrieval": {
+        "enabled": true,
+        "minimum_coverage": 0.15
+      },
+      "selector": {
+        "enabled": true,
+        "mandatory_structural_evidence": true,
+        "max_selector_candidates": 200,
+        "tight_budget_fraction": 0.3
+      },
+      "semantic": {
+        "command": "",
+        "env_allowlist": [],
+        "max_output_bytes": 8388608,
+        "max_results": 6,
+        "mode": "auto",
+        "provider_id": "builtin-local",
+        "timeout_seconds": 8
+      },
+      "source_shares": {
+        "crg": 0.4,
+        "hot_cache": 0.15,
+        "lightweight": 0.3,
+        "source_fallback": 0.15
+      },
+      "sufficiency": {
+        "threshold": 0.72
       },
       "targeted_search": {
-        "max_matches": 12,
-        "max_file_bytes": 500000
-      }
-    },
-    "workspace": {
-      "roots": [],
-      "max_roots": 4,
-      "registry": "ai-workspace/config/repositories.json",
-      "repository_graph": "ai-workspace/config/repository-graph.json",
-      "hierarchical_retrieval": {
-        "enabled": true,
-        "max_primary_repositories": 2,
-        "max_graph_expansions": 2,
-        "relationships": [
-          "depends_on",
-          "publishes_api",
-          "consumes_schema",
-          "deploys"
-        ]
+        "max_file_bytes": 500000,
+        "max_matches": 12
       },
-      "discovery": {
-        "max_depth": 8,
-        "require_acceptance": false,
-        "auto_include_on_setup": true
+      "telemetry": {
+        "mode": "mutations"
       }
     },
     "execution": {
-      "prefer_superpowers_for_full": true,
       "native_fallback": true,
-      "superpowers": {
-        "mode": "auto"
-      },
       "orchestration_budget": {
         "max_agent_slots": 4,
         "max_crg_calls": 6,
         "max_graph_depth": 3,
         "review_passes": 2,
         "verification_passes": 2
+      },
+      "prefer_superpowers_for_full": true,
+      "superpowers": {
+        "mode": "auto"
       }
     },
     "handoff": {
@@ -409,10 +205,64 @@
     },
     "models": {
       "answer": "fast",
-      "small": "fast",
+      "full_high": "capable",
       "full_medium": "standard",
-      "full_high": "capable"
+      "small": "fast"
+    },
+    "version": 2,
+    "workspace": {
+      "discovery": {
+        "auto_include_on_setup": true,
+        "max_depth": 8,
+        "require_acceptance": false
+      },
+      "hierarchical_retrieval": {
+        "enabled": true,
+        "max_graph_expansions": 2,
+        "max_primary_repositories": 2,
+        "relationships": [
+          "depends_on",
+          "publishes_api",
+          "consumes_schema",
+          "deploys"
+        ]
+      },
+      "max_roots": 4,
+      "registry": "ai-workspace/config/repositories.json",
+      "repository_graph": "ai-workspace/config/repository-graph.json",
+      "roots": []
     }
+  },
+  "evidence_state": {
+    "answer_abstain": "abstain",
+    "full_explore": "requires_exploration",
+    "small_explore": "requires_exploration",
+    "sufficient_full": "sufficient"
+  },
+  "handoff_render": {
+    "full_dedupe": "# Handoff\n- **Lane / risk**: full / high\n- **Goal / state**: fix retry / routed\n- **Exact paths+symbols**: none yet\n- **Context sources**: lightweight_index, durable_memory\n- **Ordered edits**: execution provider = superpowers\n- **Invariants**: preserve existing contracts unless task explicitly changes them\n- **Changed files**: none\n- **Checks**: define focused checks before build\n- **Blockers**: none\n- **Exact next step**: inspect bounded context and finalize exact edit sites\n",
+    "no_sources": "# Handoff\n- **Lane / risk**: small / low\n- **Goal / state**: rename / routed\n- **Exact paths+symbols**: none yet\n- **Context sources**: none\n- **Ordered edits**: execution provider = native\n- **Invariants**: preserve existing contracts unless task explicitly changes them\n- **Changed files**: none\n- **Checks**: define focused checks before build\n- **Blockers**: none\n- **Exact next step**: inspect bounded context and finalize exact edit sites\n"
+  },
+  "handoff_validate": {
+    "crlf_valid": [],
+    "missing_fields": [
+      "missing field: Goal / state",
+      "missing field: Exact paths+symbols",
+      "missing field: Context sources",
+      "missing field: Ordered edits",
+      "missing field: Invariants",
+      "missing field: Changed files",
+      "missing field: Checks",
+      "missing field: Blockers",
+      "missing field: Exact next step"
+    ],
+    "over_cap": [
+      "handoff has 36 lines; cap is 30"
+    ],
+    "placeholder": [
+      "handoff still contains template placeholders"
+    ],
+    "valid": []
   },
   "mmr": {
     "redundant_payment_context": [
@@ -420,5 +270,591 @@
       "test",
       "service-helper"
     ]
+  },
+  "model_tier": {
+    "answer": "fast",
+    "full_high": "capable",
+    "full_low": "standard",
+    "full_medium": "standard",
+    "small": "fast"
+  },
+  "orchestration": {
+    "answer_sufficient": {
+      "agent_slots": 1,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 0,
+      "complexity_vector": {
+        "changed_file_count": 0,
+        "evidence_gap": false,
+        "lane_weight": 0,
+        "risk_weight": 0,
+        "structural_intent": false,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [],
+      "graph_depth": 1,
+      "native_fallback": false,
+      "review_passes": 1,
+      "superpowers_skills": [],
+      "verification_passes": 1
+    },
+    "full_budget_floors": {
+      "agent_slots": 1,
+      "budget": {
+        "max_agent_slots": 1,
+        "max_crg_calls": 0,
+        "max_graph_depth": 1,
+        "review_passes": 1,
+        "verification_passes": 1
+      },
+      "complexity_score": 8,
+      "complexity_vector": {
+        "changed_file_count": 0,
+        "evidence_gap": false,
+        "lane_weight": 2,
+        "risk_weight": 2,
+        "structural_intent": false,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [],
+      "graph_depth": 1,
+      "native_fallback": false,
+      "review_passes": 1,
+      "superpowers_skills": [
+        "writing-plans",
+        "subagent-driven-development",
+        "requesting-code-review",
+        "verification-before-completion"
+      ],
+      "verification_passes": 1
+    },
+    "full_budget_override": {
+      "agent_slots": 1,
+      "budget": {
+        "max_agent_slots": 1,
+        "max_crg_calls": 1,
+        "max_graph_depth": 1,
+        "review_passes": 1,
+        "verification_passes": 1
+      },
+      "complexity_score": 18,
+      "complexity_vector": {
+        "changed_file_count": 5,
+        "evidence_gap": true,
+        "lane_weight": 2,
+        "risk_weight": 2,
+        "structural_intent": true,
+        "workspace_root_count": 4
+      },
+      "crg_plan": [
+        "get_minimal_context_tool"
+      ],
+      "graph_depth": 1,
+      "native_fallback": false,
+      "review_passes": 1,
+      "superpowers_skills": [
+        "writing-plans",
+        "subagent-driven-development",
+        "requesting-code-review",
+        "verification-before-completion"
+      ],
+      "verification_passes": 1
+    },
+    "full_high_structural_all": {
+      "agent_slots": 4,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 16,
+      "complexity_vector": {
+        "changed_file_count": 3,
+        "evidence_gap": true,
+        "lane_weight": 2,
+        "risk_weight": 2,
+        "structural_intent": true,
+        "workspace_root_count": 2
+      },
+      "crg_plan": [
+        "get_minimal_context_tool",
+        "get_impact_radius_tool",
+        "query_graph_tool",
+        "get_review_context_tool"
+      ],
+      "graph_depth": 3,
+      "native_fallback": false,
+      "review_passes": 2,
+      "superpowers_skills": [
+        "writing-plans",
+        "subagent-driven-development",
+        "requesting-code-review",
+        "verification-before-completion"
+      ],
+      "verification_passes": 2
+    },
+    "full_medium_two_changed": {
+      "agent_slots": 3,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 8,
+      "complexity_vector": {
+        "changed_file_count": 2,
+        "evidence_gap": false,
+        "lane_weight": 2,
+        "risk_weight": 1,
+        "structural_intent": false,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [
+        "get_minimal_context_tool",
+        "get_impact_radius_tool",
+        "get_review_context_tool"
+      ],
+      "graph_depth": 2,
+      "native_fallback": true,
+      "review_passes": 1,
+      "superpowers_skills": [],
+      "verification_passes": 1
+    },
+    "full_selective_disabled": {
+      "agent_slots": 2,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 6,
+      "complexity_vector": {
+        "changed_file_count": 0,
+        "evidence_gap": false,
+        "lane_weight": 2,
+        "risk_weight": 1,
+        "structural_intent": false,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [],
+      "graph_depth": 1,
+      "native_fallback": false,
+      "review_passes": 1,
+      "superpowers_skills": [
+        "writing-plans",
+        "subagent-driven-development",
+        "requesting-code-review",
+        "verification-before-completion"
+      ],
+      "verification_passes": 1
+    },
+    "full_selective_reject": {
+      "agent_slots": 3,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 10,
+      "complexity_vector": {
+        "changed_file_count": 0,
+        "evidence_gap": true,
+        "lane_weight": 2,
+        "risk_weight": 1,
+        "structural_intent": true,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [
+        "get_minimal_context_tool",
+        "get_impact_radius_tool",
+        "query_graph_tool",
+        "get_review_context_tool"
+      ],
+      "graph_depth": 2,
+      "native_fallback": false,
+      "review_passes": 2,
+      "superpowers_skills": [
+        "writing-plans",
+        "subagent-driven-development",
+        "requesting-code-review",
+        "verification-before-completion"
+      ],
+      "verification_passes": 2
+    },
+    "small_native_gap": {
+      "agent_slots": 1,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 6,
+      "complexity_vector": {
+        "changed_file_count": 0,
+        "evidence_gap": true,
+        "lane_weight": 1,
+        "risk_weight": 1,
+        "structural_intent": false,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [],
+      "graph_depth": 1,
+      "native_fallback": true,
+      "review_passes": 1,
+      "superpowers_skills": [],
+      "verification_passes": 1
+    },
+    "small_superpowers": {
+      "agent_slots": 1,
+      "budget": {
+        "max_agent_slots": 4,
+        "max_crg_calls": 6,
+        "max_graph_depth": 3,
+        "review_passes": 2,
+        "verification_passes": 2
+      },
+      "complexity_score": 2,
+      "complexity_vector": {
+        "changed_file_count": 0,
+        "evidence_gap": false,
+        "lane_weight": 1,
+        "risk_weight": 0,
+        "structural_intent": false,
+        "workspace_root_count": 1
+      },
+      "crg_plan": [
+        "get_minimal_context_tool",
+        "get_review_context_tool"
+      ],
+      "graph_depth": 1,
+      "native_fallback": false,
+      "review_passes": 1,
+      "superpowers_skills": [
+        "test-driven-development",
+        "verification-before-completion"
+      ],
+      "verification_passes": 1
+    }
+  },
+  "remote_identity": {
+    "empty": null,
+    "file_url": "opaque:e4461b48f1a31efa",
+    "https_credentials": "example.com/Taki7980/Repo",
+    "scp_remote": "github.com/Taki7980/Repo"
+  },
+  "repository_id": {
+    "backend_remote": "2cc8ed09132fc2296b0e0bd30236e9d17500bdb7802b360610ecb5dc9fc2c5be",
+    "case_preserving_remote": "bd3aac64be9b9043343ef457df7a89833b6a41af8ddfa5f0c78e5c18f434365d",
+    "root_without_remote": "be4df980feef21cb8e2f9f7cfdf9e2fc298c9f92d48fba92de1f8cc7bb18725d"
+  },
+  "retrieval": {
+    "ambiguous_answer_query": {
+      "intent": "mixed",
+      "reason": "read-only query with ambiguous retrieval intent",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": false
+    },
+    "bounded_default": {
+      "intent": "exact",
+      "reason": "bounded deterministic default",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": false
+    },
+    "callees_exact_anchor": {
+      "intent": "structural",
+      "reason": "structural relationship requested",
+      "structural_patterns": [
+        "callees_of"
+      ],
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": true
+    },
+    "exact_identifier": {
+      "intent": "exact",
+      "reason": "exact identifier/path/endpoint signal",
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": false
+    },
+    "references_exact_anchor": {
+      "intent": "structural",
+      "reason": "structural relationship requested",
+      "structural_patterns": [
+        "references_to"
+      ],
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": true
+    },
+    "semantic_and_exact": {
+      "intent": "mixed",
+      "reason": "identifier and semantic intent both present",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": false
+    },
+    "semantic_paraphrase": {
+      "intent": "semantic",
+      "reason": "natural-language semantic intent",
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": false
+    },
+    "structural_exact_anchor": {
+      "intent": "structural",
+      "reason": "structural relationship requested",
+      "structural_patterns": [
+        "callers_of"
+      ],
+      "use_lexical": true,
+      "use_semantic": false,
+      "use_structural": true
+    },
+    "structural_without_anchor": {
+      "intent": "mixed",
+      "reason": "structural relationship needs entry-point discovery",
+      "structural_patterns": [
+        "impact"
+      ],
+      "use_lexical": true,
+      "use_semantic": true,
+      "use_structural": true
+    }
+  },
+  "routing": {
+    "ambiguous_defaults_full": {
+      "confidence": 0.62,
+      "lane": "full",
+      "reasons": [
+        "ambiguous task defaults to safe full-lane planning"
+      ],
+      "risk": "medium",
+      "structural_context": false
+    },
+    "answer_explanation": {
+      "confidence": 0.96,
+      "lane": "answer",
+      "reasons": [
+        "read-only question/explanation"
+      ],
+      "risk": "low",
+      "structural_context": false
+    },
+    "author_not_auth": {
+      "confidence": 0.88,
+      "lane": "answer",
+      "reasons": [
+        "read-only question/explanation"
+      ],
+      "risk": "low",
+      "structural_context": false
+    },
+    "high_risk_authentication": {
+      "confidence": 0.99,
+      "lane": "full",
+      "reasons": [
+        "high-risk change keyword: authentication"
+      ],
+      "risk": "high",
+      "structural_context": false
+    },
+    "high_risk_deploy_contract": {
+      "confidence": 0.99,
+      "lane": "full",
+      "reasons": [
+        "high-risk change keyword: deploy, public api, contract change"
+      ],
+      "risk": "high",
+      "structural_context": false
+    },
+    "high_risk_payment_auth": {
+      "confidence": 0.99,
+      "lane": "full",
+      "reasons": [
+        "high-risk change keyword: auth, payment"
+      ],
+      "risk": "high",
+      "structural_context": false
+    },
+    "high_risk_payment_schema": {
+      "confidence": 0.99,
+      "lane": "full",
+      "reasons": [
+        "high-risk change keyword: payment, migration, schema"
+      ],
+      "risk": "high",
+      "structural_context": false
+    },
+    "sensitive_read_only": {
+      "confidence": 0.96,
+      "lane": "answer",
+      "reasons": [
+        "read-only question/explanation"
+      ],
+      "risk": "low",
+      "structural_context": false
+    },
+    "small_known_file": {
+      "confidence": 0.9,
+      "lane": "small",
+      "reasons": [
+        "bounded low-complexity edit",
+        "explicit file scope: 1 file(s)"
+      ],
+      "risk": "low",
+      "structural_context": false
+    },
+    "structural_blast_radius": {
+      "confidence": 0.94,
+      "lane": "full",
+      "reasons": [
+        "multi-hop/structural context requested"
+      ],
+      "risk": "medium",
+      "structural_context": true
+    },
+    "unbounded_mutation": {
+      "confidence": 0.78,
+      "lane": "full",
+      "reasons": [
+        "implementation scope not safely bounded"
+      ],
+      "risk": "medium",
+      "structural_context": false
+    }
+  },
+  "schema_version": 1,
+  "selective": {
+    "all_stale": {
+      "accept": false,
+      "condition": "irrelevant",
+      "reasons": [
+        "all_selected_evidence_is_stale"
+      ],
+      "score": 0.0
+    },
+    "below_floor": {
+      "accept": false,
+      "condition": "irrelevant",
+      "reasons": [
+        "query_coverage_below_floor",
+        "sufficiency_below_threshold"
+      ],
+      "score": 0.1
+    },
+    "no_context": {
+      "accept": false,
+      "condition": "no_context",
+      "reasons": [
+        "no_selected_context"
+      ],
+      "score": 0.0
+    },
+    "partial_structural": {
+      "accept": false,
+      "condition": "partial",
+      "reasons": [
+        "required_structural_evidence_incomplete",
+        "sufficiency_below_threshold"
+      ],
+      "score": 0.5
+    },
+    "partial_threshold": {
+      "accept": false,
+      "condition": "partial",
+      "reasons": [
+        "sufficiency_below_threshold"
+      ],
+      "score": 0.6
+    },
+    "supported": {
+      "accept": true,
+      "condition": "supported",
+      "reasons": [
+        "evidence_quality_gate_passed"
+      ],
+      "score": 0.91
+    }
+  },
+  "source": {
+    "commit": "554302c378f69809fbd09ff001eb7cfdb9af5005",
+    "repository": "Taki7980/ai-workflow-control-plane-v2"
+  },
+  "sufficiency": {
+    "camel_and_snake": {
+      "exact_match": false,
+      "lexical_coverage": 1.0,
+      "score": 0.85,
+      "source_diversity": 2,
+      "structural_complete": true,
+      "sufficient": true
+    },
+    "empty": {
+      "exact_match": false,
+      "lexical_coverage": 0.0,
+      "score": 0.0,
+      "source_diversity": 0,
+      "structural_complete": false,
+      "sufficient": false
+    },
+    "full_score": {
+      "exact_match": true,
+      "lexical_coverage": 1.0,
+      "score": 1.0,
+      "source_diversity": 2,
+      "structural_complete": true,
+      "sufficient": true
+    },
+    "partial_coverage": {
+      "exact_match": false,
+      "lexical_coverage": 0.5,
+      "score": 0.475,
+      "source_diversity": 1,
+      "structural_complete": true,
+      "sufficient": false
+    },
+    "structural_any": {
+      "exact_match": false,
+      "lexical_coverage": 0.0,
+      "score": 0.185,
+      "source_diversity": 1,
+      "structural_complete": true,
+      "sufficient": false
+    },
+    "structural_matched": {
+      "exact_match": true,
+      "lexical_coverage": 1.0,
+      "score": 1.0,
+      "source_diversity": 2,
+      "structural_complete": true,
+      "sufficient": true
+    },
+    "structural_missing": {
+      "exact_match": false,
+      "lexical_coverage": 0.8,
+      "score": 0.549,
+      "source_diversity": 1,
+      "structural_complete": false,
+      "sufficient": false
+    }
   }
 }
