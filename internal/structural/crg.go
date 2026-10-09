@@ -1,0 +1,454 @@
+package structural
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
+)
+
+// Query describes one structural lookup.
+type Query struct {
+	Text     string
+	Symbol   string
+	Changed  []string // repository-relative slash paths
+	Limit    int
+	Patterns []string
+	MaxCalls int // CRG subprocess calls allowed; 0 allows none
+}
+
+var crgTimeout = 8 * time.Second
+
+const crgMaxOutput = 8 << 20
+
+// Field is one key of an Ordered JSON object.
+type Field struct {
+	Key   string
+	Value any
+}
+
+// Ordered encodes as a JSON object keeping insertion order, matching V2's
+// dict ordering in item text.
+type Ordered []Field
+
+func (o Ordered) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	buf.WriteByte('{')
+	for i, f := range o {
+		if i > 0 {
+			buf.WriteByte(',')
+		}
+		k, _ := json.Marshal(f.Key)
+		buf.Write(k)
+		buf.WriteByte(':')
+		v, err := encode(f.Value)
+		if err != nil {
+			return nil, err
+		}
+		buf.Write(v)
+	}
+	buf.WriteByte('}')
+	return buf.Bytes(), nil
+}
+
+// encode is compact JSON without HTML escaping.
+func encode(v any) ([]byte, error) {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err != nil {
+		return nil, err
+	}
+	return bytes.TrimSuffix(buf.Bytes(), []byte("\n")), nil
+}
+
+func toInt(v any) (int, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int(n), true
+	case int:
+		return n, true
+	case bool:
+		if n {
+			return 1, true
+		}
+		return 0, true
+	case string:
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		return i, err == nil
+	}
+	return 0, false
+}
+
+func list(v any) []any {
+	l, _ := v.([]any)
+	return l
+}
+
+func truthy(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case string:
+		return x != ""
+	case bool:
+		return x
+	case float64:
+		return x != 0
+	case []any:
+		return len(x) > 0
+	case map[string]any:
+		return len(x) > 0
+	}
+	return true
+}
+
+func head(l []any, n int) []any {
+	if l == nil {
+		return []any{}
+	}
+	return l[:min(len(l), max(0, n))]
+}
+
+// ResultCount ports V2 _crg_result_count.
+func ResultCount(payload map[string]any, pattern string) int {
+	var raw any
+	switch pattern {
+	case "impact":
+		raw = payload["total_impacted"]
+		if raw == nil {
+			raw = len(list(payload["impacted_nodes"]))
+		}
+	case "architecture":
+		raw = 0
+		if truthy(payload["summary"]) {
+			raw = 1
+		}
+	default:
+		raw = payload["result_count"]
+		if raw == nil {
+			raw = len(list(payload["results"]))
+		}
+	}
+	n, _ := toInt(raw)
+	return max(0, n)
+}
+
+// VerifiedEmptyCRG ports V2 _verified_empty_crg.
+func VerifiedEmptyCRG(payload map[string]any) bool {
+	c, _ := payload["confidence"].(string)
+	c = strings.ToLower(c)
+	return strings.Contains(c, "real absence") && strings.Contains(c, "current") && !strings.Contains(c, "unverified")
+}
+
+func present(v any) bool {
+	switch x := v.(type) {
+	case nil:
+		return false
+	case string:
+		return x != ""
+	case []any:
+		return len(x) > 0
+	case map[string]any:
+		return len(x) > 0
+	}
+	return true
+}
+
+// CompactCRG ports V2 _compact_crg_payload.
+func CompactCRG(payload map[string]any, pattern string, limit int) Ordered {
+	o := Ordered{{"status", "ok"}, {"pattern", pattern}}
+	for _, k := range []string{"target", "summary", "confidence", "truncated"} {
+		if v := payload[k]; present(v) {
+			o = append(o, Field{k, v})
+		}
+	}
+	switch pattern {
+	case "impact":
+		o = append(o,
+			Field{"total_impacted", ResultCount(payload, pattern)},
+			Field{"impacted_files", head(list(payload["impacted_files"]), limit)},
+			Field{"impacted_nodes", head(list(payload["impacted_nodes"]), limit)},
+			Field{"edges", head(list(payload["edges"]), limit)})
+	case "architecture":
+		for _, k := range []string{"communities", "entry_points", "hub_nodes", "bridge_nodes"} {
+			if l, ok := payload[k].([]any); ok {
+				o = append(o, Field{k, head(l, limit)})
+			}
+		}
+	default:
+		o = append(o,
+			Field{"result_count", ResultCount(payload, pattern)},
+			Field{"results", head(list(payload["results"]), limit)},
+			Field{"edges", head(list(payload["edges"]), limit)})
+	}
+	return o
+}
+
+// CRGItem ports V2 _crg_item.
+func CRGItem(payload map[string]any, pattern string, score float64, limit int, anchor string) model.ContextItem {
+	count := ResultCount(payload, pattern)
+	emptyVerified := count == 0 && VerifiedEmptyCRG(payload)
+	truncated, _ := payload["truncated"].(bool)
+	meta := map[string]any{
+		"pattern":          pattern,
+		"structural_valid": count > 0 || emptyVerified,
+		"result_count":     count,
+		"empty_verified":   emptyVerified,
+		"truncated":        truncated,
+	}
+	if anchor != "" {
+		meta["anchor"] = anchor
+	}
+	text, _ := encode(CompactCRG(payload, pattern, limit))
+	return model.ContextItem{Source: "code_review_graph", Text: string(text), Score: score, Metadata: meta}
+}
+
+// relPath rewrites an absolute path (optionally "path::name") to a
+// repository-relative slash path. ok is false when it lies outside root.
+// Values that are not absolute paths are returned unchanged.
+func relPath(root, s string) (string, bool) {
+	p, suffix := s, ""
+	if i := strings.LastIndex(s, "::"); i >= 0 {
+		p, suffix = s[:i], s[i:]
+	}
+	if filepath.IsAbs(filepath.FromSlash(p)) {
+		rel, _, err := workspace.Within(root, filepath.FromSlash(p))
+		if err != nil {
+			return "", false
+		}
+		return rel + suffix, true
+	}
+	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) {
+		return "", false // rooted but not absolute (Windows): never inside root
+	}
+	return s, true
+}
+
+var rowPathKeys = []string{"file_path", "relative_path", "path", "qualified_name", "source", "target", "name"}
+
+// rewritePaths makes every path in a CRG payload repository-relative and
+// drops rows or file entries outside the repository, so absolute machine
+// paths never reach a brief.
+func rewritePaths(root string, payload map[string]any) {
+	prefix := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(strings.TrimSuffix(filepath.ToSlash(root), "/")+"/"))
+	for _, k := range []string{"target", "summary", "confidence"} {
+		if s, ok := payload[k].(string); ok {
+			payload[k] = prefix.ReplaceAllString(s, "")
+		}
+	}
+	for _, k := range []string{"results", "impacted_nodes", "changed_nodes", "edges"} {
+		rows, ok := payload[k].([]any)
+		if !ok {
+			continue
+		}
+		kept := []any{}
+	rows:
+		for _, r := range rows {
+			row, ok := r.(map[string]any)
+			if !ok {
+				continue
+			}
+			for _, pk := range rowPathKeys {
+				if s, ok := row[pk].(string); ok {
+					rel, inside := relPath(root, s)
+					if !inside {
+						continue rows
+					}
+					row[pk] = rel
+				}
+			}
+			kept = append(kept, row)
+		}
+		payload[k] = kept
+	}
+	for _, k := range []string{"impacted_files", "changed_files"} {
+		files, ok := payload[k].([]any)
+		if !ok {
+			continue
+		}
+		kept := []any{}
+		for _, f := range files {
+			if s, ok := f.(string); ok {
+				if rel, inside := relPath(root, s); inside {
+					kept = append(kept, rel)
+				}
+			}
+		}
+		payload[k] = kept
+	}
+}
+
+type capWriter struct {
+	buf bytes.Buffer
+	max int
+}
+
+func (w *capWriter) Write(p []byte) (int, error) {
+	if w.buf.Len()+len(p) > w.max {
+		return 0, errors.New("output cap exceeded")
+	}
+	return w.buf.Write(p)
+}
+
+type crgRun struct {
+	ctx             context.Context
+	exe, root, data string
+	calls, maxCalls int
+}
+
+// call runs one CRG subcommand and returns its payload only for exit 0 and a
+// JSON object with status "ok".
+func (r *crgRun) call(args ...string) map[string]any {
+	if r.calls >= r.maxCalls {
+		return nil
+	}
+	r.calls++
+	ctx, cancel := context.WithTimeout(r.ctx, crgTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, r.exe, append(args, "--repo", r.root)...)
+	cmd.Dir = r.root
+	cmd.Env = append(os.Environ(), "CRG_DATA_DIR="+r.data, "CRG_REPO_ROOT="+r.root)
+	cmd.WaitDelay = time.Second
+	out := &capWriter{max: crgMaxOutput}
+	cmd.Stdout = out
+	if cmd.Run() != nil || strings.TrimSpace(out.buf.String()) == "" {
+		return nil
+	}
+	payload := map[string]any{}
+	if json.Unmarshal(out.buf.Bytes(), &payload) != nil || payload["status"] != "ok" {
+		return nil
+	}
+	return payload
+}
+
+// crgAnchor ports V2 _crg_anchor on a raw payload.
+func crgAnchor(payload map[string]any) (anchor, path string) {
+	for _, r := range list(payload["results"]) {
+		row, ok := r.(map[string]any)
+		if !ok {
+			continue
+		}
+		a := firstString(row, "qualified_name", "name")
+		if a != "" {
+			return a, firstString(row, "relative_path", "file_path", "path")
+		}
+	}
+	return "", ""
+}
+
+func firstString(m map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if s, _ := m[k].(string); strings.TrimSpace(s) != "" {
+			return strings.TrimSpace(s)
+		}
+	}
+	return ""
+}
+
+func has(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// CRGContext ports V2 crg_context for one repository: it resolves an anchor,
+// runs the requested graph patterns and returns compact, path-rewritten items.
+// Nothing runs unless the CLI is installed and the graph is fresh.
+func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextItem {
+	exe, err := exec.LookPath("code-review-graph")
+	if err != nil || !GraphStatus(ctx, ws, rel).Ready {
+		return nil
+	}
+	root, err := repoRoot(ws, rel)
+	if err != nil {
+		return nil
+	}
+	data, err := GraphDir(ws, rel)
+	if err != nil {
+		return nil
+	}
+	limit := max(1, q.Limit)
+	r := &crgRun{ctx: ctx, exe: exe, root: root, data: data, maxCalls: q.MaxCalls}
+
+	requested := q.Patterns
+	if len(requested) == 0 {
+		switch {
+		case len(q.Changed) > 0:
+			requested = []string{"impact"}
+		case q.Symbol != "":
+			requested = []string{"callers_of"}
+		default:
+			requested = []string{"architecture"}
+		}
+	}
+	anchor, anchorPath := q.Symbol, ""
+	needsAnchor := (has(requested, "impact") && len(q.Changed) == 0) ||
+		has(requested, "callers_of") || has(requested, "callees_of") || has(requested, "tests_for")
+	if needsAnchor && anchor == "" {
+		if p := r.call("search", q.Text, "--limit", strconv.Itoa(limit)); p != nil {
+			anchor, anchorPath = crgAnchor(p)
+		}
+	}
+	shown := func() string {
+		if a, ok := relPath(root, anchor); ok {
+			return a
+		}
+		return ""
+	}
+
+	items := []model.ContextItem{}
+	add := func(p map[string]any, pattern string, score float64, anchor string) {
+		rewritePaths(root, p)
+		items = append(items, CRGItem(p, pattern, score, limit, anchor))
+	}
+	if has(requested, "impact") {
+		files := append([]string{}, q.Changed...)
+		if len(files) == 0 && anchorPath == "" && anchor != "" {
+			if p := r.call("search", anchor, "--limit", strconv.Itoa(limit)); p != nil {
+				_, anchorPath = crgAnchor(p)
+			}
+		}
+		if len(files) == 0 && anchorPath != "" {
+			if f, ok := relPath(root, anchorPath); ok {
+				files = []string{f}
+			}
+		}
+		if len(files) > 0 {
+			args := append(append([]string{"impact", "--files"}, files...), "--max-results", strconv.Itoa(limit))
+			if p := r.call(args...); p != nil {
+				add(p, "impact", 9, shown())
+			}
+		}
+	}
+	for _, pattern := range requested {
+		if pattern == "impact" || pattern == "architecture" || pattern == "references_to" || anchor == "" {
+			continue
+		}
+		if p := r.call("query", pattern, anchor); p != nil {
+			add(p, pattern, 9, shown())
+		}
+		if len(items) >= limit {
+			return items[:limit]
+		}
+	}
+	if has(requested, "architecture") && len(items) < limit {
+		if p := r.call("architecture"); p != nil {
+			add(p, "architecture", 8, "")
+		}
+	}
+	return items[:min(len(items), limit)]
+}

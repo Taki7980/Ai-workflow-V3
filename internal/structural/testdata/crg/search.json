@@ -1,0 +1,1 @@
+{"status":"ok","query":"Foo","search_mode":"fts","summary":"Found 1 node(s) matching 'Foo'","results":[{"name":"Foo","qualified_name":"{{ROOT}}/pkg/a.go::Foo","kind":"Function","file_path":"{{ROOT}}/pkg/a.go","line_start":3,"line_end":3,"language":"go","score":0.5}]}
