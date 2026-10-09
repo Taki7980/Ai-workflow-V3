@@ -70,7 +70,7 @@ func Fingerprint(ctx context.Context, root string, indexFiles map[string]any, ch
 	if err != nil {
 		abs = root
 	}
-	st := State{Root: abs, Schema: 2, ChangedFiles: changedState(abs, changed)}
+	st := State{Root: abs, Schema: 2, ChangedFiles: ChangedState(abs, changed)}
 	if head, err := gitText(ctx, abs, "rev-parse", "HEAD"); err == nil && head != "" {
 		st.GitHead = &head
 	}
@@ -87,7 +87,8 @@ func Fingerprint(ctx context.Context, root string, indexFiles map[string]any, ch
 	return st
 }
 
-func changedState(root string, changed []string) []ChangedFile {
+// ChangedState hashes each changed path under root (present/missing/rejected/unreadable).
+func ChangedState(root string, changed []string) []ChangedFile {
 	uniq := map[string]bool{}
 	for _, c := range changed {
 		uniq[c] = true
@@ -132,7 +133,7 @@ func ChangedFiles(ctx context.Context, root string, reg Registry) []string {
 			out = append(out, p)
 		}
 	}
-	for _, p := range gitStatus(ctx, root) {
+	for _, p := range GitStatus(ctx, root) {
 		add(p)
 	}
 	for _, repo := range reg.Repositories {
@@ -140,16 +141,16 @@ func ChangedFiles(ctx context.Context, root string, reg Registry) []string {
 			continue
 		}
 		prefix := strings.TrimSuffix(filepath.ToSlash(repo.RelativePath), "/") + "/"
-		for _, p := range gitStatus(ctx, filepath.Join(root, filepath.FromSlash(repo.RelativePath))) {
+		for _, p := range GitStatus(ctx, filepath.Join(root, filepath.FromSlash(repo.RelativePath))) {
 			add(prefix + p)
 		}
 	}
 	return out
 }
 
-// gitStatus returns changed file paths from `git status --porcelain=v1 -z`,
+// GitStatus returns changed file paths from `git status --porcelain=v1 -z`,
 // skipping directory entries (nested repositories).
-func gitStatus(ctx context.Context, dir string) []string {
+func GitStatus(ctx context.Context, dir string) []string {
 	cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
