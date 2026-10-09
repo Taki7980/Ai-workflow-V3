@@ -2,6 +2,7 @@ package memory
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -122,5 +123,69 @@ func TestCorruptLine(t *testing.T) {
 	f.Close()
 	if _, err := List(root); err == nil || !strings.Contains(err.Error(), "line 2") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestCorruptLineSkippedBySearchAndAdd(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, RelativePath, "not json\n")
+	if _, err := Add(root, "decision", "alpha", "fix alpha", "", nil, 0.8); err != nil {
+		t.Fatalf("add after corrupt line: %v", err)
+	}
+	got, skipped, err := SearchLenient(root, "alpha", 5, 0, false)
+	if err != nil || len(got) != 1 || skipped != 1 {
+		t.Fatalf("search = %+v skipped=%d err=%v", got, skipped, err)
+	}
+}
+
+func TestAddWithoutTrailingNewline(t *testing.T) {
+	root := t.TempDir()
+	rec, _ := Add(root, "decision", "one", "one", "", nil, 0.8)
+	b, _ := os.ReadFile(Path(root))
+	writeFile(t, root, RelativePath, strings.TrimSuffix(string(b), "\n"))
+	if _, err := Add(root, "decision", "two", "two", "", nil, 0.8); err != nil {
+		t.Fatal(err)
+	}
+	got, err := List(root)
+	if err != nil || len(got) != 2 || (got[0].ID != rec.ID && got[1].ID != rec.ID) {
+		t.Fatalf("list = %+v %v", got, err)
+	}
+}
+
+func TestHelperAddMany(t *testing.T) {
+	root := os.Getenv("MEMORY_HELPER_ROOT")
+	if root == "" {
+		t.Skip("helper process only")
+	}
+	for i := 0; i < 25; i++ {
+		if _, err := Add(root, "pattern", "k", "s", "", nil, 0.5); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestConcurrentProcessesKeepAllRecords(t *testing.T) {
+	root := t.TempDir()
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmds := []*exec.Cmd{}
+	for i := 0; i < 3; i++ {
+		cmd := exec.Command(exe, "-test.run=^TestHelperAddMany$")
+		cmd.Env = append(os.Environ(), "MEMORY_HELPER_ROOT="+root)
+		if err := cmd.Start(); err != nil {
+			t.Fatal(err)
+		}
+		cmds = append(cmds, cmd)
+	}
+	for _, c := range cmds {
+		if err := c.Wait(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := List(root)
+	if err != nil || len(got) != 75 {
+		t.Fatalf("records = %d err=%v (lost concurrent writes)", len(got), err)
 	}
 }

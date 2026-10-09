@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -98,8 +99,8 @@ func changedState(root string, changed []string) []ChangedFile {
 	sort.Strings(paths)
 	out := make([]ChangedFile, 0, len(paths))
 	for _, rel := range paths {
-		p := filepath.Join(root, filepath.FromSlash(rel))
-		if r, err := filepath.Rel(root, p); err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) || filepath.IsAbs(rel) {
+		_, p, err := Within(root, rel)
+		if err != nil || filepath.IsAbs(rel) {
 			out = append(out, ChangedFile{Path: rel, State: "rejected"})
 			continue
 		}
@@ -172,4 +173,28 @@ func gitStatus(ctx context.Context, dir string) []string {
 		}
 	}
 	return out
+}
+
+// Within resolves raw (relative or absolute) against root, following symlinks,
+// and rejects any path that escapes the root. rel is slash-separated.
+func Within(root, raw string) (rel, abs string, err error) {
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		return "", "", err
+	}
+	if resolved, e := filepath.EvalSymlinks(rootAbs); e == nil {
+		rootAbs = resolved
+	}
+	abs = raw
+	if !filepath.IsAbs(abs) {
+		abs = filepath.Join(rootAbs, filepath.FromSlash(raw))
+	}
+	if resolved, e := filepath.EvalSymlinks(abs); e == nil {
+		abs = resolved
+	}
+	rel, err = filepath.Rel(rootAbs, abs)
+	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", "", errors.New("outside workspace")
+	}
+	return filepath.ToSlash(rel), abs, nil
 }

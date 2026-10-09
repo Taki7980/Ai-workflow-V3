@@ -3,6 +3,7 @@ package brief
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -122,6 +123,57 @@ func TestBriefStaleSnippetDropped(t *testing.T) {
 	}
 	if text, ok := firstSource(p, "lightweight_index"); ok {
 		t.Fatalf("stale index item served: %q", text)
+	}
+	if !slices.Contains(p.Retrieval.Fallbacks, "index stale: . (1 files)") {
+		t.Fatalf("stale index not reported: %q", p.Retrieval.Fallbacks)
+	}
+}
+
+func TestBriefCorruptMemoryLineSkipped(t *testing.T) {
+	root := newWorkspace(t, map[string]string{"pay.go": payGo})
+	rec := `{"id":"mem-aaaaaaaaaaaa","type":"decision","keywords":["retrypayment"],"summary":"RetryPayment uses jittered backoff","files":[],"source_hashes":{},"confidence":0.9}`
+	if err := storage.WriteFileAtomic(filepath.Join(root, "ai-workspace", "memory", "memory.jsonl"), []byte("not json\n"+rec+"\n")); err != nil {
+		t.Fatal(err)
+	}
+	p, err := Build(context.Background(), root, "fix RetryPayment backoff", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := firstSource(p, "durable_memory"); !ok {
+		t.Fatalf("valid memory dropped because of one corrupt line: %q", p.Retrieval.Fallbacks)
+	}
+	if !slices.Contains(p.Retrieval.Fallbacks, "memory: skipped 1 corrupt line(s)") {
+		t.Fatalf("corrupt line not reported: %q", p.Retrieval.Fallbacks)
+	}
+}
+
+func TestBriefDeterministicTargetedSource(t *testing.T) {
+	files := map[string]string{}
+	for i := 0; i < 40; i++ {
+		files[fmt.Sprintf("f%02d.txt", i)] = "uses RetryPayment here\n"
+	}
+	root := newWorkspace(t, files)
+	first := ""
+	for i := 0; i < 6; i++ {
+		p, err := Build(context.Background(), root, "explain RetryPayment", Options{ChangedFiles: []string{"x"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := []string{}
+		for _, it := range p.Context {
+			if it.Source == "targeted_source" {
+				got = append(got, it.Text)
+			}
+		}
+		joined := strings.Join(got, "|")
+		if i == 0 {
+			first = joined
+		} else if joined != first {
+			t.Fatalf("run %d differs:\n%s\nvs\n%s", i, joined, first)
+		}
+	}
+	if !strings.HasPrefix(first, "f00.txt:1:") {
+		t.Fatalf("targeted results not path-ordered: %s", first)
 	}
 }
 

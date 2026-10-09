@@ -9,10 +9,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -66,12 +68,21 @@ func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, 
 		ids[r.RelativePath] = r.RepositoryID
 	}
 	files := map[string][]string{}
+	stale := map[string]int{}
+	defer func() {
+		for _, repo := range slices.Sorted(maps.Keys(stale)) {
+			g.note("index stale: %s (%d files)", repo, stale[repo])
+		}
+	}()
 	for _, hit := range indexer.Search(query, indexes, cfg.Context.Selector.MaxSelectorCandidates) {
 		key := hit.Repository + "\x00" + hit.Path
 		lines, seen := files[key]
 		if !seen {
 			lines = freshLines(root, hit.Repository, hit.Path, indexes[hit.Repository].Files[hit.Path].SHA256)
 			files[key] = lines
+			if lines == nil {
+				stale[hit.Repository]++
+			}
 		}
 		if lines == nil {
 			continue
@@ -174,7 +185,8 @@ func nestedUnder(repo string, all []string) []string {
 func ripgrep(ctx context.Context, rg, root, term string, repos []string, limit int) ([]string, error) {
 	out := []string{}
 	for _, repo := range repos {
-		args := []string{"-n", "--no-heading", "--color", "never", "-m", "2", "-F", "-i",
+		// --sort path: rg's parallel walk otherwise reorders matches run to run.
+		args := []string{"-n", "--no-heading", "--color", "never", "--sort", "path", "-m", "2", "-F", "-i",
 			"--glob", "!ai-workspace/**", "--glob", "!**/.git/**", "--glob", "!**/node_modules/**"}
 		for _, n := range nestedUnder(repo, repos) {
 			args = append(args, "--glob", "!"+n+"/**")
@@ -255,10 +267,13 @@ type memoryText struct {
 // gatherMemory adds fresh durable_memory records above the confidence floor.
 func gatherMemory(g *gathered, root, query string, cfg config.Config) {
 	g.attempted = append(g.attempted, "durable_memory")
-	hits, err := memory.Search(root, query, cfg.Memory.MaxResults, cfg.Memory.MinimumConfidence, true)
+	hits, skipped, err := memory.SearchLenient(root, query, cfg.Memory.MaxResults, cfg.Memory.MinimumConfidence, true)
 	if err != nil {
 		g.note("memory unavailable: %v", err)
 		return
+	}
+	if skipped > 0 {
+		g.note("memory: skipped %d corrupt line(s)", skipped)
 	}
 	for _, h := range hits {
 		g.items = append(g.items, model.ContextItem{

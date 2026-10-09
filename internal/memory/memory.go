@@ -21,6 +21,7 @@ import (
 
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
+	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
 // RelativePath is the workspace-relative memory store location.
@@ -49,7 +50,8 @@ type Entry struct {
 	Score float64 `json:"score,omitempty"`
 }
 
-// ponytail: process-local lock; cross-process writers can race, add a file lock if multi-agent writes appear.
+// ponytail: Add is append-only (cross-process safe); Prune/Import rewrite the file under a
+// process-local lock only, so a concurrent Add can be lost during them. Add a file lock if that matters.
 var mu sync.Mutex
 
 // Path returns the absolute memory store path for root.
@@ -68,7 +70,7 @@ func Add(root, typ, keywords, summary, evidence string, files []string, confiden
 		Confidence: min(1, max(0, confidence)),
 	}
 	for _, raw := range files {
-		rel, abs, err := within(root, raw)
+		rel, abs, err := workspace.Within(root, raw)
 		if err != nil {
 			return Record{}, fmt.Errorf("memory file path must stay within workspace: %s", raw)
 		}
@@ -79,20 +81,51 @@ func Add(root, typ, keywords, summary, evidence string, files []string, confiden
 			}
 		}
 	}
+	return rec, appendRecord(root, rec)
+}
+
+// appendRecord writes one JSONL line with a single O_APPEND write, so
+// concurrent writers never lose records and corrupt lines never block adds.
+func appendRecord(root string, rec Record) error {
+	line, err := encode([]Record{rec})
+	if err != nil {
+		return err
+	}
 	mu.Lock()
 	defer mu.Unlock()
-	recs, err := load(root)
-	if err != nil {
-		return Record{}, err
+	p := Path(root)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
 	}
-	return rec, save(root, append(recs, rec))
+	f, err := os.OpenFile(p, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if info, err := f.Stat(); err == nil && info.Size() > 0 {
+		last := make([]byte, 1)
+		if _, err := f.ReadAt(last, info.Size()-1); err == nil && last[0] != '\n' {
+			line = append([]byte("\n"), line...)
+		}
+	}
+	if _, err := f.Write(line); err != nil {
+		return err
+	}
+	return f.Sync()
 }
 
 // Search ranks records by BM25 x confidence; stale records sort last.
+// Corrupt lines are skipped; use SearchLenient to learn how many.
 func Search(root, query string, limit int, minConfidence float64, excludeStale bool) ([]Entry, error) {
-	recs, err := load(root)
+	out, _, err := SearchLenient(root, query, limit, minConfidence, excludeStale)
+	return out, err
+}
+
+// SearchLenient is Search that also reports the number of skipped corrupt lines.
+func SearchLenient(root, query string, limit int, minConfidence float64, excludeStale bool) ([]Entry, int, error) {
+	recs, skipped, err := loadLenient(root)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	texts, entries := []string{}, []Entry{}
 	for _, r := range recs {
@@ -124,7 +157,7 @@ func Search(root, query string, limit int, minConfidence float64, excludeStale b
 	if limit > 0 && len(out) > limit {
 		out = out[:limit]
 	}
-	return out, nil
+	return out, skipped, nil
 }
 
 // List returns all records, fresh first, then by descending confidence.
@@ -226,20 +259,32 @@ func Import(root, src string) (imported, skipped, invalid int, err error) {
 	return imported, skipped, invalid, err
 }
 
+// load reads every record, failing on the first corrupt line (List, Prune,
+// Export and Import must not silently drop data).
 func load(root string) ([]Record, error) {
-	f, err := os.Open(Path(root))
-	if errors.Is(err, os.ErrNotExist) {
-		return []Record{}, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-	return decode(f)
+	recs, _, err := read(root, false)
+	return recs, err
 }
 
-func decode(r io.Reader) ([]Record, error) {
-	out := []Record{}
+// loadLenient skips corrupt lines and reports how many were skipped.
+func loadLenient(root string) ([]Record, int, error) {
+	return read(root, true)
+}
+
+func read(root string, lenient bool) ([]Record, int, error) {
+	f, err := os.Open(Path(root))
+	if errors.Is(err, os.ErrNotExist) {
+		return []Record{}, 0, nil
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	defer f.Close()
+	return decode(f, lenient)
+}
+
+func decode(r io.Reader, lenient bool) ([]Record, int, error) {
+	out, skipped := []Record{}, 0
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	for n := 1; sc.Scan(); n++ {
@@ -249,11 +294,15 @@ func decode(r io.Reader) ([]Record, error) {
 		}
 		var rec Record
 		if err := json.Unmarshal(line, &rec); err != nil {
-			return nil, fmt.Errorf("%s line %d: %w", RelativePath, n, err)
+			if lenient {
+				skipped++
+				continue
+			}
+			return nil, 0, fmt.Errorf("%s line %d: %w", RelativePath, n, err)
 		}
 		out = append(out, normalize(rec))
 	}
-	return out, sc.Err()
+	return out, skipped, sc.Err()
 }
 
 func encode(recs []Record) ([]byte, error) {
@@ -298,7 +347,7 @@ func isStale(root string, r Record) bool {
 		}
 	}
 	for rel, want := range r.SourceHashes {
-		_, abs, err := within(root, rel)
+		_, abs, err := workspace.Within(root, rel)
 		if err != nil {
 			return true
 		}
@@ -308,29 +357,6 @@ func isStale(root string, r Record) bool {
 		}
 	}
 	return false
-}
-
-// within resolves raw against root and rejects paths escaping it.
-func within(root, raw string) (rel, abs string, err error) {
-	rootAbs, err := filepath.Abs(root)
-	if err != nil {
-		return "", "", err
-	}
-	if resolved, e := filepath.EvalSymlinks(rootAbs); e == nil {
-		rootAbs = resolved
-	}
-	abs = raw
-	if !filepath.IsAbs(abs) {
-		abs = filepath.Join(rootAbs, filepath.FromSlash(raw))
-	}
-	if resolved, e := filepath.EvalSymlinks(abs); e == nil {
-		abs = resolved
-	}
-	rel, err = filepath.Rel(rootAbs, abs)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", "", errors.New("outside workspace")
-	}
-	return filepath.ToSlash(rel), abs, nil
 }
 
 func fileSHA(path string) (string, error) {

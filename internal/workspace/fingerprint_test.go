@@ -114,3 +114,16 @@ func TestChangedFilesNested(t *testing.T) {
 		t.Fatalf("changed = %q", got)
 	}
 }
+
+func TestChangedFileSymlinkEscapeRejected(t *testing.T) {
+	root := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret.txt")
+	write(t, outside, "secret")
+	if err := os.Symlink(outside, filepath.Join(root, "link.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	got := Fingerprint(context.Background(), root, nil, []string{"link.txt"}).ChangedFiles
+	if len(got) != 1 || got[0].State != "rejected" || got[0].SHA256 != nil {
+		t.Fatalf("symlink escape hashed: %+v", got)
+	}
+}
