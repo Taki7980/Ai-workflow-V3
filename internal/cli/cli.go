@@ -23,6 +23,11 @@ import (
 // Run parses the CLI arguments, dispatches to the matching subcommand, and
 // returns the process exit code, writing output and errors to out and errOut.
 func Run(args []string, out, errOut io.Writer) int {
+	return RunWithStdin(args, os.Stdin, out, errOut)
+}
+
+// RunWithStdin is Run with an explicit stdin for commands that read input.
+func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 	root, args, err := extractRoot(args)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -48,6 +53,16 @@ func Run(args []string, out, errOut io.Writer) int {
 		return contextCmd(root, args[1:], out, errOut)
 	case "doctor":
 		return doctorCmd(root, args[1:], out, errOut)
+	case "brief":
+		return briefCmd(root, args[1:], out, errOut)
+	case "handoff":
+		return handoffCmd(root, args[1:], out, errOut)
+	case "verify":
+		return verifyCmd(root, args[1:], out, errOut)
+	case "compress":
+		return compressCmd(args[1:], in, out, errOut)
+	case "memory":
+		return memoryCmd(root, args[1:], out, errOut)
 	default:
 		fmt.Fprintf(errOut, "unknown command %q\n", args[0])
 		usage(errOut)
@@ -77,13 +92,31 @@ func extractRoot(args []string) (string, []string, error) {
 
 // usage writes the top-level CLI usage summary to w.
 func usage(w io.Writer) {
-	fmt.Fprintln(w, "AI Workflow V3\n\nUsage: ai-workflow [--root PATH] <setup|route|repos|index|context|doctor|version>")
+	fmt.Fprintln(w, `AI Workflow V3
+
+Usage: ai-workflow [--root PATH] <command>
+
+Commands:
+  setup                      discover repositories, write config, build indexes
+  brief TASK                 emit the agent brief (--format json|markdown|prompt)
+  route TASK                 classify lane, risk and retrieval intent
+  context QUERY              search indexed symbols
+  handoff                    validate ai-workspace/handoff/HANDOFF.md
+  verify --check CMD         run checks without a shell (+ handoff validation)
+  compress                   bound noisy output from stdin or --file
+  memory SUBCOMMAND          add|search|list|prune|export|import durable memory
+  repos list|refresh         manage the repository registry
+  index                      rebuild indexes (--mode auto|incremental|full)
+  doctor [--strict]          validate the environment
+  version                    print the version`)
 }
 
 // printJSON marshals v as indented JSON and writes it to w, followed by a newline.
 func printJSON(w io.Writer, v any) {
-	b, _ := json.MarshalIndent(v, "", "  ")
-	fmt.Fprintln(w, string(b))
+	enc := json.NewEncoder(w)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	_ = enc.Encode(v)
 }
 
 // setup implements the "setup" subcommand: it writes a default config if one

@@ -44,7 +44,22 @@ The harness currently freezes:
 - retrieval intent, lexical/semantic/structural requirements, reasons, and structural patterns;
 - credential-free remote identity normalization;
 - repository ID hashing;
-- the complete V2 default control-plane configuration document.
+- the complete V2 default control-plane configuration document;
+- the orchestration contract (complexity vector/score, Superpowers skills, CRG plan, slots, review/verification passes, graph depth, budget floors);
+- evidence sufficiency score and the selective-retrieval gate;
+- evidence state (`sufficient`, `requires_exploration`, `abstain`);
+- handoff validation errors and the rendered handoff template;
+- output compression;
+- `brief --format markdown|prompt` rendering;
+- model-tier selection.
+
+### Deliberate differences in the workflow loop
+
+- `brief --format json` emits the agent-facing subset of V2's packet. Research-only diagnostics (`algorithm_policy`, `learning`, `token_funnel`, `scheduler`, `authorization_policy`, `task_retrieval_policy`, `policy_identity`, `graph_state`, `stage_latency_ms`) are not emitted.
+- Durable memory is stored as `ai-workspace/memory/memory.jsonl` (same record schema as V2). Migrate with V2 `memory export` and V3 `memory import`.
+- `retrieval.workspace_state.index_state_sha256` keeps V2 semantics (changes iff indexed content changes) but is computed over the V3 index layout, so its value is not comparable with V2.
+- `lightweight_index` context items carry a fresh source window after the symbol row; stale files are never served.
+- The selective gate's verified-structural-conflict check and the `missing_code_owned_evidence_identity` branch arrive with the structural adapter.
 
 A deliberate incompatibility requires changing the cases/fixture provenance and documenting the decision rather than weakening comparison.
 
