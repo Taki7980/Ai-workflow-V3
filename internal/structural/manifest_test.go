@@ -175,3 +175,20 @@ func TestScipStatusReasons(t *testing.T) {
 	writeFile(t, filepath.Join(dir, "index.json"), `{"documents":[1]}`)
 	want("SCIP JSON hash mismatch")
 }
+
+func TestGraphStatusFailsClosedWhenGitStatusFails(t *testing.T) {
+	ctx := context.Background()
+	ws := gitRepo(t)
+	writeFile(t, graphDB(t, ws), "graph")
+	if _, err := WriteGraphManifest(ctx, ws, ".", "2.3.8", "build"); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(ws, "pkg", "a.go"), "package pkg\n// edited\n")
+	writeFile(t, filepath.Join(ws, ".git", "index"), "corrupt")
+	if st := GraphStatus(ctx, ws, "."); st.Ready || st.Reason != "repository state unavailable" {
+		t.Fatalf("git status failure must fail closed: %+v", st)
+	}
+	if _, err := WriteGraphManifest(ctx, ws, ".", "2.3.8", "update"); err == nil {
+		t.Fatal("manifest must not be written without repository state")
+	}
+}

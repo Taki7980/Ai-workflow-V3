@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -110,13 +111,11 @@ func ChangedState(root string, changed []string) []ChangedFile {
 			out = append(out, ChangedFile{Path: rel, State: "missing"})
 			continue
 		}
-		b, err := os.ReadFile(p)
+		h, err := streamSHA256(p)
 		if err != nil {
 			out = append(out, ChangedFile{Path: rel, State: "unreadable"})
 			continue
 		}
-		sum := sha256.Sum256(b)
-		h := hex.EncodeToString(sum[:])
 		out = append(out, ChangedFile{Path: rel, State: "present", SHA256: &h})
 	}
 	return out
@@ -151,13 +150,23 @@ func ChangedFiles(ctx context.Context, root string, reg Registry) []string {
 // GitStatus returns changed file paths from `git status --porcelain=v1 -z`,
 // skipping directory entries (nested repositories).
 func GitStatus(ctx context.Context, dir string) []string {
+	out, _ := GitStatusErr(ctx, dir)
+	return out
+}
+
+// GitStatusErr is GitStatus that reports a failed or timed-out git run, so
+// callers relying on "no changes" can fail closed.
+func GitStatusErr(ctx context.Context, dir string) ([]string, error) {
 	cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(cctx, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
 	cmd.Dir = dir
 	raw, err := cmd.Output() // untrimmed: the leading status column is significant
-	if err != nil || len(raw) == 0 {
-		return nil
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) == 0 {
+		return nil, nil
 	}
 	fields := strings.Split(string(raw), "\x00")
 	out := []string{}
@@ -173,7 +182,7 @@ func GitStatus(ctx context.Context, dir string) []string {
 			out = append(out, p)
 		}
 	}
-	return out
+	return out, nil
 }
 
 // Within resolves raw (relative or absolute) against root, following symlinks,
@@ -198,4 +207,18 @@ func Within(root, raw string) (rel, abs string, err error) {
 		return "", "", errors.New("outside workspace")
 	}
 	return filepath.ToSlash(rel), abs, nil
+}
+
+// streamSHA256 hashes a file without loading it into memory.
+func streamSHA256(p string) (string, error) {
+	f, err := os.Open(p)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }

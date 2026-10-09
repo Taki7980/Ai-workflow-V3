@@ -5,11 +5,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
@@ -48,7 +50,34 @@ type ScipManifest struct {
 	GeneratedAt            string  `json:"generated_at"`
 }
 
+type hashKey struct {
+	path string
+	size int64
+	mod  time.Time
+}
+
+// hashMemo caches artifact hashes by path, size and mtime so one brief hashes
+// a large graph.db or SCIP index once, not once per freshness check.
+// ponytail: an in-place rewrite keeping size and mtime is not detected; key on inode/ctime if that matters.
+var hashMemo sync.Map
+
 func sha256File(p string) (string, error) {
+	info, err := os.Stat(p)
+	if err != nil {
+		return "", err
+	}
+	key := hashKey{p, info.Size(), info.ModTime()}
+	if h, ok := hashMemo.Load(key); ok {
+		return h.(string), nil
+	}
+	h, err := hashFile(p)
+	if err == nil {
+		hashMemo.Store(key, h)
+	}
+	return h, err
+}
+
+func hashFile(p string) (string, error) {
 	f, err := os.Open(p)
 	if err != nil {
 		return "", err
@@ -77,10 +106,15 @@ func gitHead(ctx context.Context, dir string) *string {
 // RepoFingerprint hashes git HEAD plus the content state of every changed
 // path. Control state under ai-workspace/ is excluded so writing manifests,
 // briefs or handoffs never makes the repository look changed.
-func RepoFingerprint(ctx context.Context, root string) (fingerprint string, head *string) {
+// A failed or timed-out git status returns an error: freshness fails closed.
+func RepoFingerprint(ctx context.Context, root string) (fingerprint string, head *string, err error) {
 	head = gitHead(ctx, root)
+	status, err := workspace.GitStatusErr(ctx, root)
+	if err != nil {
+		return "", nil, err
+	}
 	changed := []string{}
-	for _, p := range workspace.GitStatus(ctx, root) {
+	for _, p := range status {
 		if !strings.HasPrefix(p, "ai-workspace/") {
 			changed = append(changed, p)
 		}
@@ -91,7 +125,7 @@ func RepoFingerprint(ctx context.Context, root string) (fingerprint string, head
 		"changed_files": workspace.ChangedState(root, changed),
 	})
 	sum := sha256.Sum256(b)
-	return hex.EncodeToString(sum[:]), head
+	return hex.EncodeToString(sum[:]), head, nil
 }
 
 func now() string { return time.Now().UTC().Format("2006-01-02T15:04:05Z") }
@@ -118,7 +152,10 @@ func WriteGraphManifest(ctx context.Context, ws, rel, crgVersion, mode string) (
 	if err != nil {
 		return GraphManifest{}, err
 	}
-	fp, head := RepoFingerprint(ctx, root)
+	fp, head, err := RepoFingerprint(ctx, root)
+	if err != nil {
+		return GraphManifest{}, fmt.Errorf("repository state unavailable: %w", err)
+	}
 	m := GraphManifest{manifestSchema, normRel(rel), fp, head, sum, crgVersion, mode, now()}
 	return m, writeManifest(dir, m)
 }
@@ -141,7 +178,10 @@ func WriteScipManifest(ctx context.Context, ws, rel, language, indexer string) (
 	if err != nil {
 		return ScipManifest{}, err
 	}
-	fp, head := RepoFingerprint(ctx, root)
+	fp, head, err := RepoFingerprint(ctx, root)
+	if err != nil {
+		return ScipManifest{}, fmt.Errorf("repository state unavailable: %w", err)
+	}
 	m := ScipManifest{manifestSchema, normRel(rel), fp, head, language, indexer, idx, js, now()}
 	return m, writeManifest(dir, m)
 }
@@ -178,7 +218,10 @@ func provenance(ctx context.Context, ws, rel, fp string, head *string) string {
 	if err != nil {
 		return "unsafe repository path"
 	}
-	cur, curHead := RepoFingerprint(ctx, root)
+	cur, curHead, err := RepoFingerprint(ctx, root)
+	if err != nil {
+		return "repository state unavailable"
+	}
 	if fp != cur {
 		return "repository fingerprint mismatch"
 	}

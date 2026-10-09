@@ -90,3 +90,34 @@ func TestValidatePassesNonCRG(t *testing.T) {
 		t.Fatalf("got %+v", out)
 	}
 }
+
+func TestValidateLoadsScipOnce(t *testing.T) {
+	ws := gitRepo(t)
+	readyScip(t, ws)
+	loads := 0
+	old := loadScip
+	loadScip = func(ctx context.Context, ws, rel string) (string, map[string]any, bool) {
+		loads++
+		return old(ctx, ws, rel)
+	}
+	t.Cleanup(func() { loadScip = old })
+	items := []model.ContextItem{crgItemRows(crgRow("pkg/a.go", "Foo")), crgItemRows(crgRow("pkg/a.go", "Bar")), crgItemRows(crgRow("pkg/a.go", "Foo"))}
+	out := Validate(context.Background(), ws, ".", items, Query{Symbol: "Foo", Limit: 6})
+	if loads != 1 {
+		t.Fatalf("SCIP index loaded %d times for %d items", loads, len(items))
+	}
+	if out[0].Metadata["evidence_confidence"] != "verified" {
+		t.Fatalf("got %+v", out[0].Metadata)
+	}
+}
+
+func TestSHA256FileMemoSeesChanges(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "f")
+	writeFile(t, p, "aaaa")
+	a, _ := sha256File(p)
+	writeFile(t, p, "bbbbbbbb")
+	b, _ := sha256File(p)
+	if a == b || a == "" {
+		t.Fatalf("memo returned a stale hash: %s %s", a, b)
+	}
+}

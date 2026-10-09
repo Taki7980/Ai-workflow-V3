@@ -186,12 +186,16 @@ func SyncScip(ctx context.Context, ws string, rels []string, language string, ti
 				e.Error = "scip not installed"
 				return
 			}
+			produced := filepath.Join(root, "index.scip")
+			if _, err := os.Lstat(produced); err == nil {
+				e.Error = "index.scip already exists in the repository root; move it first"
+				return
+			}
+			defer os.Remove(produced) // also cleans up a partial index from a failed run
 			if _, err := runTool(ctx, timeout, root, nil, indexer, ix.Args...); err != nil {
 				e.Error = err.Error()
 				return
 			}
-			produced := filepath.Join(root, "index.scip")
-			defer os.Remove(produced)
 			out, err := runTool(ctx, timeout, root, nil, scip, "print", "--json", "index.scip")
 			if err != nil {
 				e.Error = err.Error()

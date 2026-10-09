@@ -151,6 +151,11 @@ func withMeta(it model.ContextItem, extra map[string]any) model.ContextItem {
 // categorical, never a probability. Non-CRG items pass through unchanged.
 func Validate(ctx context.Context, ws, rel string, items []model.ContextItem, q Query) []model.ContextItem {
 	root, rootErr := repoRoot(ws, rel)
+	var (
+		scipLoaded  bool
+		scipRoot    string
+		scipPayload map[string]any
+	)
 	out := make([]model.ContextItem, 0, len(items))
 	for _, it := range items {
 		if it.Source != "code_review_graph" {
@@ -180,7 +185,13 @@ func Validate(ctx context.Context, ws, rel string, items []model.ContextItem, q 
 			} else {
 				sq.Patterns = nil
 			}
-			paths, names = scipKeys(ScipContext(ctx, ws, rel, sq))
+			if !scipLoaded {
+				scipRoot, scipPayload, _ = loadScip(ctx, ws, rel)
+				scipLoaded = true
+			}
+			if scipPayload != nil {
+				paths, names = scipKeys(ItemsFromScipPayload(scipRoot, scipPayload, sq))
+			}
 		}
 		src, sc, both := 0, 0, 0
 		for _, row := range rs {

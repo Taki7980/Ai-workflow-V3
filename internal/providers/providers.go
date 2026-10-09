@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
@@ -136,8 +137,10 @@ func hasSCIP(root string, reg workspace.Registry) bool {
 }
 
 func anyReady(root string, reg workspace.Registry, status func(context.Context, string, string) structural.Status) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	for _, repo := range reg.Repositories {
-		if repo.Included && status(context.Background(), root, repo.RelativePath).Ready {
+		if repo.Included && status(ctx, root, repo.RelativePath).Ready {
 			return true
 		}
 	}

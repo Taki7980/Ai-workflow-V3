@@ -96,3 +96,17 @@ func TestSyncScipAmbiguous(t *testing.T) {
 		t.Fatalf("got %+v", r)
 	}
 }
+
+func TestSyncScipKeepsExistingIndexFile(t *testing.T) {
+	ws := gitRepo(t)
+	writeFile(t, filepath.Join(ws, "go.mod"), "module x\n")
+	writeFile(t, filepath.Join(ws, "index.scip"), "user owned")
+	noTools(t)
+	r := SyncScip(context.Background(), ws, []string{"."}, "", time.Minute)
+	if r.Repositories[0].OK || r.Repositories[0].Error != "index.scip already exists in the repository root; move it first" {
+		t.Fatalf("got %+v", r)
+	}
+	if b, err := os.ReadFile(filepath.Join(ws, "index.scip")); err != nil || string(b) != "user owned" {
+		t.Fatalf("user file touched: %q %v", b, err)
+	}
+}

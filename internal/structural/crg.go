@@ -216,37 +216,71 @@ func CRGItem(payload map[string]any, pattern string, score float64, limit int, a
 
 // relPath rewrites an absolute path (optionally "path::name") to a
 // repository-relative slash path. ok is false when it lies outside root.
-// Values that are not absolute paths are returned unchanged.
-func relPath(root, s string) (string, bool) {
+// Values that are not absolute paths are returned unchanged. alias, when
+// set, is the spelling of root that matched by file identity (junction,
+// subst drive, short name) rather than by path.
+func relPath(root, s string) (rel string, ok bool, alias string) {
 	p, suffix := s, ""
 	if i := strings.LastIndex(s, "::"); i >= 0 {
 		p, suffix = s[:i], s[i:]
 	}
-	if filepath.IsAbs(filepath.FromSlash(p)) {
-		rel, _, err := workspace.Within(root, filepath.FromSlash(p))
-		if err != nil {
-			return "", false
+	native := filepath.FromSlash(p)
+	if filepath.IsAbs(native) {
+		if r, _, err := workspace.Within(root, native); err == nil {
+			return r + suffix, true, ""
 		}
-		return rel + suffix, true
+		if r, dir, found := sameFileRel(root, native); found {
+			return r + suffix, true, dir
+		}
+		return "", false, ""
 	}
 	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`) {
-		return "", false // rooted but not absolute (Windows): never inside root
+		return "", false, "" // rooted but not absolute (Windows): never inside root
 	}
-	return s, true
+	return s, true, ""
 }
 
-var rowPathKeys = []string{"file_path", "relative_path", "path", "qualified_name", "source", "target", "name"}
+// sameFileRel walks p's parents looking for a directory that is root by file
+// identity, so paths spelled through a different alias of root still resolve.
+func sameFileRel(root, p string) (rel, dir string, ok bool) {
+	rootInfo, err := os.Stat(root)
+	if err != nil {
+		return "", "", false
+	}
+	for d := filepath.Dir(p); ; d = filepath.Dir(d) {
+		if info, err := os.Stat(d); err == nil && os.SameFile(info, rootInfo) {
+			r, err := filepath.Rel(d, p)
+			if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+				return "", "", false
+			}
+			return filepath.ToSlash(r), d, true
+		}
+		if filepath.Dir(d) == d {
+			return "", "", false
+		}
+	}
+}
+
+var (
+	rowPathKeys = []string{"file_path", "relative_path", "path", "qualified_name", "source", "target", "name"}
+	// absolutePath spots an absolute path left in free text after rewriting.
+	absolutePath = regexp.MustCompile(`(^|[\s'"(=,\[])(/[^\s/'"()]|[A-Za-z]:[\\/]|\\\\)`)
+)
 
 // rewritePaths makes every path in a CRG payload repository-relative and
 // drops rows or file entries outside the repository, so absolute machine
-// paths never reach a brief.
+// paths never reach a brief. Free text that still holds an absolute path
+// after rewriting is dropped, and result counts exclude dropped rows.
 func rewritePaths(root string, payload map[string]any) {
-	prefix := regexp.MustCompile(`(?i)` + regexp.QuoteMeta(strings.TrimSuffix(filepath.ToSlash(root), "/")+"/"))
-	for _, k := range []string{"target", "summary", "confidence"} {
-		if s, ok := payload[k].(string); ok {
-			payload[k] = prefix.ReplaceAllString(s, "")
+	prefixes := map[string]bool{strings.TrimSuffix(filepath.ToSlash(root), "/"): true}
+	rewrite := func(s string) (string, bool) {
+		rel, ok, alias := relPath(root, s)
+		if alias != "" {
+			prefixes[strings.TrimSuffix(filepath.ToSlash(alias), "/")] = true
 		}
+		return rel, ok
 	}
+	dropped := map[string]int{}
 	for _, k := range []string{"results", "impacted_nodes", "changed_nodes", "edges"} {
 		rows, ok := payload[k].([]any)
 		if !ok {
@@ -261,8 +295,9 @@ func rewritePaths(root string, payload map[string]any) {
 			}
 			for _, pk := range rowPathKeys {
 				if s, ok := row[pk].(string); ok {
-					rel, inside := relPath(root, s)
+					rel, inside := rewrite(s)
 					if !inside {
+						dropped[k]++
 						continue rows
 					}
 					row[pk] = rel
@@ -280,12 +315,38 @@ func rewritePaths(root string, payload map[string]any) {
 		kept := []any{}
 		for _, f := range files {
 			if s, ok := f.(string); ok {
-				if rel, inside := relPath(root, s); inside {
+				if rel, inside := rewrite(s); inside {
 					kept = append(kept, rel)
 				}
 			}
 		}
 		payload[k] = kept
+	}
+	for count, list := range map[string]string{"result_count": "results", "total_impacted": "impacted_nodes"} {
+		if n, ok := toInt(payload[count]); ok && dropped[list] > 0 {
+			payload[count] = max(0, n-dropped[list])
+		}
+	}
+	if s, ok := payload["target"].(string); ok {
+		if rel, inside := rewrite(s); inside {
+			payload["target"] = rel
+		} else {
+			delete(payload, "target")
+		}
+	}
+	for _, k := range []string{"target", "summary", "confidence"} {
+		s, ok := payload[k].(string)
+		if !ok {
+			continue
+		}
+		for prefix := range prefixes {
+			s = regexp.MustCompile(`(?i)`+regexp.QuoteMeta(prefix+"/")).ReplaceAllString(s, "")
+		}
+		if absolutePath.MatchString(s) {
+			delete(payload, k)
+			continue
+		}
+		payload[k] = s
 	}
 }
 
@@ -404,7 +465,7 @@ func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextIte
 		}
 	}
 	shown := func() string {
-		if a, ok := relPath(root, anchor); ok {
+		if a, ok, _ := relPath(root, anchor); ok {
 			return a
 		}
 		return ""
@@ -423,7 +484,7 @@ func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextIte
 			}
 		}
 		if len(files) == 0 && anchorPath != "" {
-			if f, ok := relPath(root, anchorPath); ok {
+			if f, ok, _ := relPath(root, anchorPath); ok {
 				files = []string{f}
 			}
 		}

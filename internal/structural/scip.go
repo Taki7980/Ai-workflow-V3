@@ -280,27 +280,37 @@ func ItemsFromScipPayload(repoRoot string, payload map[string]any, q Query) []mo
 	return out
 }
 
-// ScipContext reads a fresh SCIP JSON index for one repository.
-func ScipContext(ctx context.Context, ws, rel string, q Query) []model.ContextItem {
+// loadScip returns the repository root and parsed index.json when the SCIP
+// index is fresh. A package variable so tests can count loads.
+var loadScip = func(ctx context.Context, ws, rel string) (string, map[string]any, bool) {
 	st := ScipStatus(ctx, ws, rel)
 	if !st.Ready {
-		return nil
+		return "", nil, false
 	}
 	root, err := repoRoot(ws, rel)
 	if err != nil {
-		return nil
+		return "", nil, false
 	}
 	f, err := os.Open(filepath.Join(st.DataDir, "index.json"))
 	if err != nil {
-		return nil
+		return "", nil, false
 	}
 	defer f.Close()
 	b, err := io.ReadAll(io.LimitReader(f, scipMaxJSON+1))
 	if err != nil || len(b) > scipMaxJSON {
-		return nil
+		return "", nil, false
 	}
 	payload := map[string]any{}
 	if json.Unmarshal(b, &payload) != nil {
+		return "", nil, false
+	}
+	return root, payload, true
+}
+
+// ScipContext reads a fresh SCIP JSON index for one repository.
+func ScipContext(ctx context.Context, ws, rel string, q Query) []model.ContextItem {
+	root, payload, ok := loadScip(ctx, ws, rel)
+	if !ok {
 		return nil
 	}
 	return ItemsFromScipPayload(root, payload, q)

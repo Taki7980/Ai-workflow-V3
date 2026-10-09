@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -242,5 +244,66 @@ func TestCRGMaxCalls(t *testing.T) {
 	}
 	if lines := logLines(t, log); len(lines) != 1 {
 		t.Fatalf("calls %v", lines)
+	}
+}
+
+// linkDir creates an alias of target (junction on Windows, symlink elsewhere).
+func linkDir(t *testing.T, target, link string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		if out, err := exec.Command("cmd", "/c", "mklink", "/J", link, target).CombinedOutput(); err != nil {
+			t.Skipf("mklink: %v %s", err, out)
+		}
+		return
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Skip(err)
+	}
+}
+
+func TestRewritePathsThroughAliasRoot(t *testing.T) {
+	base := t.TempDir()
+	real := filepath.Join(base, "ws one")
+	writeFile(t, filepath.Join(real, "pkg", "a.go"), "package pkg\n")
+	alias := filepath.Join(base, "jn")
+	linkDir(t, real, alias)
+	slash := filepath.ToSlash(real)
+	p := map[string]any{
+		"target":       slash + "/pkg/a.go::Foo",
+		"summary":      "Found 1 result(s) for callers_of('" + slash + "/pkg/a.go::Foo')",
+		"result_count": 2.0,
+		"results": []any{
+			map[string]any{"name": "Bar", "file_path": slash + "/pkg/a.go", "qualified_name": slash + "/pkg/a.go::Bar"},
+			map[string]any{"name": "Ext", "file_path": "/elsewhere/x.go"},
+		},
+	}
+	rewritePaths(alias, p)
+	rows := p["results"].([]any)
+	if len(rows) != 1 || rows[0].(map[string]any)["file_path"] != "pkg/a.go" {
+		t.Fatalf("rows %v", rows)
+	}
+	if p["target"] != "pkg/a.go::Foo" {
+		t.Fatalf("target %v", p["target"])
+	}
+	if s, ok := p["summary"].(string); ok && strings.Contains(strings.ToLower(s), strings.ToLower(filepath.ToSlash(base))) {
+		t.Fatalf("absolute path leaked: %v", s)
+	}
+	if p["result_count"] != 1 {
+		t.Fatalf("result_count must drop the outside row: %v", p["result_count"])
+	}
+}
+
+func TestRewritePathsRedactsUnresolvedAbsolute(t *testing.T) {
+	root := t.TempDir()
+	p := map[string]any{"summary": "callers_of('/elsewhere/x.go::Foo')", "confidence": `see C:\other\y.go`, "target": "Foo"}
+	rewritePaths(root, p)
+	if _, ok := p["summary"]; ok {
+		t.Fatalf("summary with an outside path kept: %v", p["summary"])
+	}
+	if _, ok := p["confidence"]; ok {
+		t.Fatalf("confidence with an outside path kept: %v", p["confidence"])
+	}
+	if p["target"] != "Foo" {
+		t.Fatalf("bare symbol target changed: %v", p["target"])
 	}
 }
