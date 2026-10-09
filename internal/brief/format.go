@@ -44,7 +44,7 @@ type RetrievalDiagnostics struct {
 	AdaptiveContextTokens int               `json:"adaptive_context_tokens"`
 	HardContextTokens     int               `json:"hard_context_tokens"`
 	ProvidersAttempted    []string          `json:"providers_attempted"`
-	ProvidersSkipped      []string          `json:"providers_skipped"`
+	ProvidersSkipped      map[string]string `json:"providers_skipped"`
 	ProviderErrors        map[string]string `json:"provider_errors"`
 	Fallbacks             []string          `json:"fallbacks"`
 	Orchestration         Orchestration     `json:"orchestration"`

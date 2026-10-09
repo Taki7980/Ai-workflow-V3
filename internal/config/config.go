@@ -66,8 +66,14 @@ type Context struct {
 	AdaptiveBudget      AdaptiveBudget     `json:"adaptive_budget"`
 	Selector            Selector           `json:"selector"`
 	SelectiveRetrieval  SelectiveRetrieval `json:"selective_retrieval"`
+	SCIP                SCIP               `json:"scip"`
 	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
 	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+// SCIP gates SCIP index use: auto, on or off.
+type SCIP struct {
+	Mode string `json:"mode"`
 }
 
 type SelectiveRetrieval struct {
@@ -166,6 +172,7 @@ func Default() Config {
 			AdaptiveBudget:      AdaptiveBudget{Enabled: true, HighSufficiencyFraction: .45, MediumFraction: .70, MinimumChars: 900},
 			Selector:            Selector{Enabled: true, TightBudgetFraction: .30, MandatoryStructuralEvidence: true, MaxSelectorCandidates: 200},
 			SelectiveRetrieval:  SelectiveRetrieval{Enabled: true, MinimumCoverage: .15},
+			SCIP:                SCIP{Mode: "auto"},
 		},
 		Workspace: Workspace{Roots: []string{}, MaxRoots: 4, Registry: "ai-workspace/config/repositories.json", RepositoryGraph: "ai-workspace/config/repository-graph.json", Discovery: Discovery{MaxDepth: 8, RequireAcceptance: false, AutoIncludeOnSetup: true}},
 		Execution: Execution{
