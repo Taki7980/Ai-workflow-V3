@@ -149,31 +149,42 @@ func TestBriefCorruptMemoryLineSkipped(t *testing.T) {
 
 func TestBriefDeterministicTargetedSource(t *testing.T) {
 	files := map[string]string{}
-	for i := 0; i < 40; i++ {
-		files[fmt.Sprintf("f%02d.txt", i)] = "uses RetryPayment here\n"
+	for i := range 40 {
+		files[fmt.Sprintf("f%02d.go", i)] = "package p // uses RetryPayment here\n"
 	}
 	root := newWorkspace(t, files)
-	first := ""
-	for i := 0; i < 6; i++ {
-		p, err := Build(context.Background(), root, "explain RetryPayment", Options{ChangedFiles: []string{"x"}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		got := []string{}
-		for _, it := range p.Context {
-			if it.Source == "targeted_source" {
-				got = append(got, it.Text)
+	for _, mode := range []string{"ripgrep", "scan"} {
+		t.Run(mode, func(t *testing.T) {
+			if mode == "scan" {
+				old := rgPath
+				rgPath = func() (string, error) { return "", errors.New("missing") }
+				t.Cleanup(func() { rgPath = old })
+			} else if _, err := rgPath(); err != nil {
+				t.Skip("ripgrep not installed")
 			}
-		}
-		joined := strings.Join(got, "|")
-		if i == 0 {
-			first = joined
-		} else if joined != first {
-			t.Fatalf("run %d differs:\n%s\nvs\n%s", i, joined, first)
-		}
-	}
-	if !strings.HasPrefix(first, "f00.txt:1:") {
-		t.Fatalf("targeted results not path-ordered: %s", first)
+			first := ""
+			for i := range 6 {
+				p, err := Build(context.Background(), root, "explain RetryPayment", Options{ChangedFiles: []string{"x"}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				got := []string{}
+				for _, it := range p.Context {
+					if it.Source == "targeted_source" {
+						got = append(got, it.Text)
+					}
+				}
+				joined := strings.Join(got, "|")
+				if i == 0 {
+					first = joined
+				} else if joined != first {
+					t.Fatalf("run %d differs:\n%s\nvs\n%s", i, joined, first)
+				}
+			}
+			if !strings.HasPrefix(first, "f00.go:1:") {
+				t.Fatalf("targeted results not path-ordered: %s", first)
+			}
+		})
 	}
 }
 

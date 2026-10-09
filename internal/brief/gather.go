@@ -217,6 +217,7 @@ func ripgrep(ctx context.Context, rg, root, term string, repos []string, limit i
 }
 
 // scan matches term case-insensitively in indexed files (≤500 KB each).
+// ponytail: indexed files only (V2 walked every file); docs/config are missed without ripgrep — walk the tree if that matters.
 func scan(root, term string, repos []string, indexes map[string]indexer.Index, limit int) []string {
 	needle := strings.ToLower(term)
 	out := []string{}
