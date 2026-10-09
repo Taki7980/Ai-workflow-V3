@@ -1,13 +1,16 @@
 package providers
 
 import (
+	"context"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/structural"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
@@ -59,20 +62,46 @@ func TestDetectSuperpowersPluginGlob(t *testing.T) {
 	}
 }
 
-func TestDetectCRGRequiresBinaryAndGraph(t *testing.T) {
+func gitRepo(t *testing.T, dir string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "--allow-empty", "-m", "init"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+}
+
+func TestDetectCRGRequiresFreshGraph(t *testing.T) {
 	root := t.TempDir()
+	mkdir(t, root, "svc")
+	gitRepo(t, filepath.Join(root, "svc"))
 	stubEnv(t, t.TempDir(), map[string]bool{"code-review-graph": true})
 	reg := workspace.Registry{Repositories: []workspace.Repository{{RelativePath: "svc", Included: true}}}
 	cfg := config.Default()
 	if Detect(root, cfg, reg).CodeReviewGraph {
 		t.Fatal("missing graph.db must not detect CRG")
 	}
-	mkdir(t, root, "ai-workspace", "code-review-graph", "svc")
-	if err := os.WriteFile(filepath.Join(root, "ai-workspace", "code-review-graph", "svc", "graph.db"), []byte("x"), 0o644); err != nil {
+	dir, err := structural.GraphDir(root, "svc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	mkdir(t, dir)
+	if err := os.WriteFile(filepath.Join(dir, "graph.db"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if Detect(root, cfg, reg).CodeReviewGraph {
+		t.Fatal("graph.db without a fresh manifest must not detect CRG")
+	}
+	if _, err := structural.WriteGraphManifest(context.Background(), root, "svc", "2.3.8", "build"); err != nil {
 		t.Fatal(err)
 	}
 	if !Detect(root, cfg, reg).CodeReviewGraph {
-		t.Fatal("binary + graph.db must detect CRG")
+		t.Fatal("binary + fresh graph must detect CRG")
 	}
 	cfg.Context.CRG.Mode = "off"
 	if Detect(root, cfg, reg).CodeReviewGraph {
@@ -82,6 +111,33 @@ func TestDetectCRGRequiresBinaryAndGraph(t *testing.T) {
 	cfg.Context.CRG.Mode = "on"
 	if !Detect(t.TempDir(), cfg, workspace.Registry{}).CodeReviewGraph {
 		t.Fatal("mode on must force CRG")
+	}
+}
+
+func TestDetectSCIP(t *testing.T) {
+	root := t.TempDir()
+	gitRepo(t, root)
+	reg := workspace.Registry{Repositories: []workspace.Repository{{RelativePath: ".", Included: true}}}
+	cfg := config.Default()
+	if cfg.Context.SCIP.Mode != "auto" || Detect(root, cfg, reg).SCIP {
+		t.Fatal("no index must not detect SCIP")
+	}
+	dir, _ := structural.ScipDir(root, ".")
+	mkdir(t, dir)
+	for _, f := range []string{"index.scip", "index.json"} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("{}"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := structural.WriteScipManifest(context.Background(), root, ".", "go", "scip-go"); err != nil {
+		t.Fatal(err)
+	}
+	if !Detect(root, cfg, reg).SCIP {
+		t.Fatal("fresh SCIP index must detect")
+	}
+	cfg.Context.SCIP.Mode = "off"
+	if Detect(root, cfg, reg).SCIP {
+		t.Fatal("mode off must disable SCIP")
 	}
 }
 

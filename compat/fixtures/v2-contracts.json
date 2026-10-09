@@ -233,6 +233,129 @@
       "roots": []
     }
   },
+  "crg_compact": {
+    "architecture_lists_only": {
+      "communities": [
+        {
+          "id": 1,
+          "name": "pkg",
+          "size": 2
+        }
+      ],
+      "pattern": "architecture",
+      "status": "ok",
+      "summary": "Architecture: 2 communities",
+      "truncated": true
+    },
+    "callers_truncated": {
+      "edges": [
+        {
+          "kind": "CALLS",
+          "source": "pkg/a.go::Bar",
+          "target": "pkg/a.go::Foo"
+        }
+      ],
+      "pattern": "callers_of",
+      "result_count": 3,
+      "results": [
+        {
+          "file_path": "pkg/a.go",
+          "kind": "Function",
+          "line_start": 5,
+          "name": "Bar",
+          "qualified_name": "pkg/a.go::Bar"
+        },
+        {
+          "file_path": "pkg/b.go",
+          "kind": "Function",
+          "line_start": 2,
+          "name": "Baz",
+          "qualified_name": "pkg/b.go::Baz"
+        }
+      ],
+      "status": "ok",
+      "summary": "Found 3 result(s)",
+      "target": "pkg/a.go::Foo"
+    },
+    "impact_counts_nodes": {
+      "confidence": "graph current",
+      "edges": [],
+      "impacted_files": [
+        "pkg/a.go",
+        "pkg/b.go"
+      ],
+      "impacted_nodes": [
+        {
+          "file_path": "pkg/a.go",
+          "kind": "Function",
+          "line_start": 5,
+          "name": "Bar",
+          "qualified_name": "pkg/a.go::Bar"
+        },
+        {
+          "file_path": "pkg/b.go",
+          "kind": "Function",
+          "line_start": 2,
+          "name": "Baz",
+          "qualified_name": "pkg/b.go::Baz"
+        }
+      ],
+      "pattern": "impact",
+      "status": "ok",
+      "summary": "Blast radius",
+      "total_impacted": 2,
+      "truncated": false
+    }
+  },
+  "crg_item": {
+    "callers_anchor": {
+      "metadata": {
+        "anchor": "Foo",
+        "empty_verified": false,
+        "pattern": "callers_of",
+        "result_count": 3,
+        "structural_valid": true,
+        "truncated": false
+      },
+      "score": 9.0,
+      "source": "code_review_graph",
+      "stale": false,
+      "text": "{\"status\":\"ok\",\"pattern\":\"callers_of\",\"target\":\"pkg/a.go::Foo\",\"summary\":\"Found 3 result(s)\",\"result_count\":3,\"results\":[{\"file_path\":\"pkg/a.go\",\"kind\":\"Function\",\"line_start\":5,\"name\":\"Bar\",\"qualified_name\":\"pkg/a.go::Bar\"},{\"file_path\":\"pkg/b.go\",\"kind\":\"Function\",\"line_start\":2,\"name\":\"Baz\",\"qualified_name\":\"pkg/b.go::Baz\"},{\"file_path\":\"pkg/c.go\",\"kind\":\"Function\",\"line_start\":9,\"name\":\"Qux\",\"qualified_name\":\"pkg/c.go::Qux\"}],\"edges\":[{\"kind\":\"CALLS\",\"source\":\"pkg/a.go::Bar\",\"target\":\"pkg/a.go::Foo\"}]}"
+    },
+    "empty_unverified": {
+      "metadata": {
+        "anchor": "Foo",
+        "empty_verified": false,
+        "pattern": "tests_for",
+        "result_count": 0,
+        "structural_valid": false,
+        "truncated": false
+      },
+      "score": 9.0,
+      "source": "code_review_graph",
+      "stale": false,
+      "text": "{\"status\":\"ok\",\"pattern\":\"tests_for\",\"confidence\":\"real absence, current, unverified\",\"result_count\":0,\"results\":[],\"edges\":[]}"
+    },
+    "empty_verified": {
+      "metadata": {
+        "empty_verified": true,
+        "pattern": "tests_for",
+        "result_count": 0,
+        "structural_valid": true,
+        "truncated": false
+      },
+      "score": 9.0,
+      "source": "code_review_graph",
+      "stale": false,
+      "text": "{\"status\":\"ok\",\"pattern\":\"tests_for\",\"confidence\":\"Real absence; graph current\",\"result_count\":0,\"results\":[],\"edges\":[]}"
+    }
+  },
+  "crg_verified_empty": {
+    "missing": false,
+    "not_indexed": false,
+    "real_absence_current": true,
+    "unverified": false
+  },
   "evidence_state": {
     "answer_abstain": "abstain",
     "full_explore": "requires_exploration",
@@ -558,6 +681,14 @@
     "https_credentials": "example.com/Taki7980/Repo",
     "scp_remote": "github.com/Taki7980/Repo"
   },
+  "repo_key": {
+    "backslash": "x__y",
+    "dot": "root",
+    "dots": "repo",
+    "nested": "services__api",
+    "root": "root",
+    "unsafe": "a-b__c-d"
+  },
   "repository_id": {
     "backend_remote": "2cc8ed09132fc2296b0e0bd30236e9d17500bdb7802b360610ecb5dc9fc2c5be",
     "case_preserving_remote": "bd3aac64be9b9043343ef457df7a89833b6a41af8ddfa5f0c78e5c18f434365d",
@@ -743,6 +874,98 @@
     }
   },
   "schema_version": 1,
+  "scip_items": {
+    "query_anchor": [],
+    "references_only": [
+      {
+        "metadata": {
+          "language": "go",
+          "line": 5,
+          "path": "pkg/a.go",
+          "pattern": "references_to",
+          "result_count": 1,
+          "role": "reference",
+          "structural_valid": true,
+          "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+          "symbol_name": "Foo"
+        },
+        "score": 9.0,
+        "source": "scip",
+        "stale": false,
+        "text": "pkg/a.go:5: func Bar() { Foo() } [reference] Foo"
+      },
+      {
+        "metadata": {
+          "language": "unknown",
+          "line": 8,
+          "path": "pkg/missing.go",
+          "pattern": "references_to",
+          "result_count": 1,
+          "role": "reference",
+          "structural_valid": true,
+          "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+          "symbol_name": "Foo"
+        },
+        "score": 9.0,
+        "source": "scip",
+        "stale": false,
+        "text": "pkg/missing.go:8: Foo [reference] Foo"
+      }
+    ],
+    "symbol_all_roles": [
+      {
+        "metadata": {
+          "language": "go",
+          "line": 3,
+          "path": "pkg/a.go",
+          "pattern": "definition_of",
+          "result_count": 1,
+          "role": "definition",
+          "structural_valid": true,
+          "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+          "symbol_name": "Foo"
+        },
+        "score": 10.0,
+        "source": "scip",
+        "stale": false,
+        "text": "pkg/a.go:3: func Foo() {} [definition] Foo"
+      },
+      {
+        "metadata": {
+          "language": "go",
+          "line": 5,
+          "path": "pkg/a.go",
+          "pattern": "references_to",
+          "result_count": 1,
+          "role": "reference",
+          "structural_valid": true,
+          "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+          "symbol_name": "Foo"
+        },
+        "score": 9.25,
+        "source": "scip",
+        "stale": false,
+        "text": "pkg/a.go:5: func Bar() { Foo() } [reference] Foo"
+      },
+      {
+        "metadata": {
+          "language": "unknown",
+          "line": 8,
+          "path": "pkg/missing.go",
+          "pattern": "references_to",
+          "result_count": 1,
+          "role": "reference",
+          "structural_valid": true,
+          "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+          "symbol_name": "Foo"
+        },
+        "score": 9.0,
+        "source": "scip",
+        "stale": false,
+        "text": "pkg/missing.go:8: Foo [reference] Foo"
+      }
+    ]
+  },
   "selective": {
     "all_stale": {
       "accept": false,
@@ -785,6 +1008,30 @@
         "sufficiency_below_threshold"
       ],
       "score": 0.6
+    },
+    "structural_conflict_candidate_ignored": {
+      "accept": true,
+      "condition": "supported",
+      "reasons": [
+        "evidence_quality_gate_passed"
+      ],
+      "score": 0.9
+    },
+    "structural_conflict_scip": {
+      "accept": false,
+      "condition": "conflicting",
+      "reasons": [
+        "verified_structural_evidence_conflicts"
+      ],
+      "score": 0.0
+    },
+    "structural_conflict_verified": {
+      "accept": false,
+      "condition": "conflicting",
+      "reasons": [
+        "verified_structural_evidence_conflicts"
+      ],
+      "score": 0.0
     },
     "supported": {
       "accept": true,

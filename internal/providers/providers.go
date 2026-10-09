@@ -3,14 +3,17 @@
 package providers
 
 import (
+	"context"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/structural"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
@@ -38,6 +41,7 @@ func Detect(root string, cfg config.Config, reg workspace.Registry) Status {
 		Superpowers:     modeOr(cfg.Execution.Superpowers.Mode, func() bool { return hasSuperpowers(root) }),
 		CodeReviewGraph: modeOr(cfg.Context.CRG.Mode, func() bool { return hasCRG(root, reg) }),
 		RTK:             found("rtk"),
+		SCIP:            modeOr(cfg.Context.SCIP.Mode, func() bool { return hasSCIP(root, reg) }),
 		Ripgrep:         found("rg"),
 	}
 }
@@ -122,18 +126,21 @@ func containsSuperpowers(base string) bool {
 }
 
 // hasCRG reports whether the code-review-graph CLI is installed and at least
-// one included repository has a managed graph database.
-// ponytail: presence check only; graph schema/freshness validation lands with the structural adapter.
+// one included repository has a graph whose manifest matches its current state.
 func hasCRG(root string, reg workspace.Registry) bool {
-	if !found("code-review-graph") {
-		return false
-	}
+	return found("code-review-graph") && anyReady(root, reg, structural.GraphStatus)
+}
+
+// hasSCIP reports whether any included repository has a fresh SCIP index.
+func hasSCIP(root string, reg workspace.Registry) bool {
+	return anyReady(root, reg, structural.ScipStatus)
+}
+
+func anyReady(root string, reg workspace.Registry, status func(context.Context, string, string) structural.Status) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	for _, repo := range reg.Repositories {
-		if !repo.Included {
-			continue
-		}
-		db := filepath.Join(root, "ai-workspace", "code-review-graph", filepath.FromSlash(repo.RelativePath), "graph.db")
-		if info, err := os.Stat(db); err == nil && info.Mode().IsRegular() {
+		if repo.Included && status(ctx, root, repo.RelativePath).Ready {
 			return true
 		}
 	}

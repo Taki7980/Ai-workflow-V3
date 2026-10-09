@@ -130,3 +130,18 @@ func TestFormatMarkdownAndUnknown(t *testing.T) {
 		t.Fatal("unknown format must error")
 	}
 }
+
+func TestEvaluateSelectiveStructuralConflict(t *testing.T) {
+	item := func(confidence string, empty bool) model.ContextItem {
+		return model.ContextItem{Source: "code_review_graph", Text: confidence, Score: 9, Metadata: map[string]any{
+			"structural_valid": true, "evidence_confidence": confidence, "pattern": "callers_of", "symbol": "Foo", "empty_verified": empty}}
+	}
+	s := Sufficiency{Score: 0.9, Sufficient: true, LexicalCoverage: 1, StructuralComplete: true}
+	got := EvaluateSelective([]model.ContextItem{item("verified", false), item("corroborated", true)}, s, nil, 0.15)
+	if got.Condition != "conflicting" || got.Accept || got.Score != 0 || len(got.Reasons) != 1 || got.Reasons[0] != "verified_structural_evidence_conflicts" {
+		t.Fatalf("got %+v", got)
+	}
+	if got := EvaluateSelective([]model.ContextItem{item("verified", false), item("candidate", true)}, s, nil, 0.15); got.Condition == "conflicting" {
+		t.Fatalf("candidate must not conflict: %+v", got)
+	}
+}

@@ -136,9 +136,9 @@ func normalize(v any) (any, error) {
 	return out, json.Unmarshal(b, &out)
 }
 
-// runWorkflow replays the workflow-loop cases through V3 and reports each via add.
-func runWorkflow(cases WorkflowCases, fixture WorkflowFixture, cfg config.Config, add func(contract, name string, expected, actual any)) error {
-	check := func(contract, name string, frozen map[string]any, actual any) error {
+// checker compares a normalized V3 value against its frozen V2 fixture.
+func checker(add func(contract, name string, expected, actual any)) func(contract, name string, frozen map[string]any, actual any) error {
+	return func(contract, name string, frozen map[string]any, actual any) error {
 		expected, ok := frozen[name]
 		if !ok {
 			return fmt.Errorf("missing %s fixture %q", contract, name)
@@ -150,6 +150,11 @@ func runWorkflow(cases WorkflowCases, fixture WorkflowFixture, cfg config.Config
 		add(contract, name, expected, norm)
 		return nil
 	}
+}
+
+// runWorkflow replays the workflow-loop cases through V3 and reports each via add.
+func runWorkflow(cases WorkflowCases, fixture WorkflowFixture, cfg config.Config, add func(contract, name string, expected, actual any)) error {
+	check := checker(add)
 	for _, c := range cases.Orchestration {
 		budget := cfg.Execution.OrchestrationBudget
 		if len(c.Budget) > 0 {

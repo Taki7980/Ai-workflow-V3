@@ -63,6 +63,8 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return compressCmd(args[1:], in, out, errOut)
 	case "memory":
 		return memoryCmd(root, args[1:], out, errOut)
+	case "graph", "scip":
+		return structuralCmd(args[0], root, args[1:], out, errOut)
 	default:
 		fmt.Fprintf(errOut, "unknown command %q\n", args[0])
 		usage(errOut)
@@ -105,6 +107,8 @@ Commands:
   verify --check CMD         run checks without a shell (+ handoff validation)
   compress                   bound noisy output from stdin or --file
   memory SUBCOMMAND          add|search|list|prune|export|import durable memory
+  graph sync|status          build/refresh code-review-graph state (--repo, --timeout)
+  scip sync|status           build/refresh SCIP indexes (--repo, --language, --timeout)
   repos list|refresh         manage the repository registry
   index                      rebuild indexes (--mode auto|incremental|full)
   doctor [--strict]          validate the environment

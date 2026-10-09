@@ -4,7 +4,7 @@
 
 AI Workflow V3 is a clean reimplementation of [AI Workflow Control Plane V2](https://github.com/Taki7980/ai-workflow-control-plane-v2). It keeps V2's core idea — **escalate capability, not context volume** — while making the runtime easier to install, faster to start, safer to distribute, and simpler to maintain across Windows, Linux, macOS, and WSL.
 
-> Status: V3 covers the daily V2 loop (setup, brief, handoff, verify, compress, memory) with contract parity enforced by the differential harness. Structural (CRG/SCIP) adapters and semantic retrieval are still in progress; V2 remains the behavioral reference for them.
+> Status: V3 covers the daily V2 loop (setup, brief, handoff, verify, compress, memory) and the structural adapters (code-review-graph, SCIP) with contract parity enforced by the differential harness. Semantic retrieval is still in progress; V2 remains the behavioral reference for it.
 
 ## Why V3 exists
 
@@ -45,6 +45,8 @@ ai-workflow handoff                       # validate ai-workspace/handoff/HANDOF
 ai-workflow verify --check "go test ./..." [--strict]
 ai-workflow compress [--file F] [--max-lines 80] [--max-chars 12000] [--prefer-rtk] < noisy.log
 ai-workflow memory add|search|list|prune|export|import
+ai-workflow graph sync|status [--repo REL]... [--timeout 180]
+ai-workflow scip sync|status [--repo REL]... [--language go|python|typescript|javascript|java]
 ai-workflow repos list
 ai-workflow repos refresh
 ai-workflow index
@@ -53,6 +55,8 @@ ai-workflow version
 ```
 
 Migrating V2 memory: run `ai-workflow memory export memory.jsonl` with V2, then `ai-workflow memory import memory.jsonl` with V3.
+
+Structural evidence: with `code-review-graph` installed, run `ai-workflow graph sync` once (and after large changes). Structural tasks ("who calls X", "impact of changing Y") then get validated graph evidence in `brief`; a graph that no longer matches the repository is never used and the brief notes `run ai-workflow graph sync`. `ai-workflow scip sync` adds SCIP references when a SCIP indexer (`scip-go`, `scip-python`, ...) and `scip` are installed. V3 writes its own freshness manifests, so graphs synced by V2 report stale until synced once with V3.
 
 A project can use a non-Git parent directory:
 

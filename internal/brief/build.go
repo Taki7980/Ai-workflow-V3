@@ -116,9 +116,16 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 
 	threshold := cfg.Context.Sufficiency.Threshold
 	pre := EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, threshold)
+	skipped, providerErrors := map[string]string{}, map[string]string{}
+	structuralRan := false
+	if plan.UseStructural && !pre.StructuralComplete {
+		structuralRan = expandStructural(ctx, g, root, task, opt, plan, included, changed, cfg, threshold, skipped, providerErrors)
+		pre = EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, threshold)
+	}
 	budget := laneBudget(cfg, decision.Lane)
 	limit := adaptiveTokens(budget.EstimatedTokens, pre.Score, cfg.Context.AdaptiveBudget)
-	selected := selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates)
+	mandatory := plan.UseStructural && cfg.Context.Selector.MandatoryStructuralEvidence
+	selected := selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, plan.StructuralPatterns, mandatory)
 
 	final := EvaluateSufficiency(task, selected, plan.UseStructural, plan.StructuralPatterns, threshold)
 	sel := cfg.Context.SelectiveRetrieval
@@ -135,12 +142,11 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 			indexFiles[rel] = idx.Files
 		}
 	}
-	skipped := []string{}
 	if plan.UseSemantic {
-		skipped = append(skipped, "semantic")
+		skipped["semantic"] = "provider not configured"
 	}
-	if plan.UseStructural {
-		skipped = append(skipped, "structural")
+	if plan.UseStructural && !structuralRan {
+		skipped["structural"] = "no structural provider ran"
 	}
 	patterns := plan.StructuralPatterns
 	if patterns == nil {
@@ -178,7 +184,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 			HardContextTokens:     budget.EstimatedTokens,
 			ProvidersAttempted:    g.attempted,
 			ProvidersSkipped:      skipped,
-			ProviderErrors:        map[string]string{},
+			ProviderErrors:        providerErrors,
 			Fallbacks:             append([]string{}, g.fallbacks...),
 			Orchestration:         BuildOrchestration(decision, string(plan.Intent), final.Sufficient, sel.Enabled, selective.Accept, changed, len(included), status, cfg.Execution.OrchestrationBudget),
 		},
@@ -209,16 +215,17 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 
 // selectItems applies MMR within the token limit, falling back to
 // relevance-order truncation if the selector rejects the candidate set.
-func selectItems(g *gathered, limit, maxCandidates int) []model.ContextItem {
+func selectItems(g *gathered, limit, maxCandidates int, patterns []string, mandatory bool) []model.ContextItem {
 	candidates := make([]retrieval.Candidate[model.ContextItem], 0, len(g.items))
 	for _, it := range g.items {
 		candidates = append(candidates, retrieval.Candidate[model.ContextItem]{
 			Key: it.Source + "\x00" + it.Text, Text: it.Text, Value: it,
 			Relevance: it.Score, EstimatedTokens: estimateTokens(it.Text),
+			Required: mandatory && requiredStructural(it, patterns),
 		})
 	}
 	out := []model.ContextItem{}
-	sel, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{MaxTokens: limit, MaxCandidates: maxCandidates, Lambda: 0.70})
+	sel, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{MaxTokens: limit, MaxCandidates: maxCandidates, Lambda: 0.70, MandatoryRequired: mandatory})
 	if err == nil {
 		for _, c := range sel.Items {
 			out = append(out, c.Value)

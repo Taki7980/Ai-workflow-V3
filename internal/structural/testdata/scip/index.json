@@ -1,0 +1,19 @@
+{
+  "documents": [
+    {
+      "relativePath": "pkg/a.go",
+      "language": "go",
+      "symbols": [{"symbol": "scip-go gomod example v1 `example/pkg`/Foo().", "displayName": "Foo"}],
+      "occurrences": [
+        {"range": [2, 5, 8], "symbol": "scip-go gomod example v1 `example/pkg`/Foo().", "symbolRoles": 1},
+        {"range": [4, 13, 16], "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."},
+        {"range": [4, 5, 8], "symbol": "scip-go gomod example v1 `example/pkg`/Bar().", "symbolRoles": 1}
+      ]
+    },
+    {
+      "relative_path": "../escape.go",
+      "language": "go",
+      "occurrences": [{"range": [0, 0, 3], "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."}]
+    }
+  ]
+}

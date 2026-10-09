@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 
@@ -15,14 +16,15 @@ import (
 )
 
 type Cases struct {
-	SchemaVersion   int                  `json:"schema_version"`
-	Routing         []RoutingCase        `json:"routing"`
-	Retrieval       []RetrievalCase      `json:"retrieval"`
-	RemoteIdentity  []RemoteIdentityCase `json:"remote_identity"`
-	RepositoryID    []RepositoryIDCase   `json:"repository_id"`
-	MMR             []MMRCase            `json:"mmr"`
-	ConfigSnapshot  bool                 `json:"config_snapshot"`
+	SchemaVersion  int                  `json:"schema_version"`
+	Routing        []RoutingCase        `json:"routing"`
+	Retrieval      []RetrievalCase      `json:"retrieval"`
+	RemoteIdentity []RemoteIdentityCase `json:"remote_identity"`
+	RepositoryID   []RepositoryIDCase   `json:"repository_id"`
+	MMR            []MMRCase            `json:"mmr"`
+	ConfigSnapshot bool                 `json:"config_snapshot"`
 	WorkflowCases
+	StructuralCases
 }
 
 type RoutingCase struct {
@@ -73,6 +75,7 @@ type Fixture struct {
 	MMR            map[string][]string            `json:"mmr"`
 	Config         map[string]any                 `json:"config"`
 	WorkflowFixture
+	StructuralFixture
 }
 
 type SourceRef struct {
@@ -220,6 +223,9 @@ func Run(casesPath, fixturePath, lockPath string) (Report, error) {
 	}
 
 	if err := runWorkflow(cases.WorkflowCases, fixture.WorkflowFixture, cfg, add); err != nil {
+		return Report{}, err
+	}
+	if err := runStructural(cases.StructuralCases, fixture.StructuralFixture, filepath.Dir(casesPath), checker(add)); err != nil {
 		return Report{}, err
 	}
 
