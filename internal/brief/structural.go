@@ -20,17 +20,22 @@ import (
 var structuralDeadline = 10 * time.Second
 
 // structuralAnchor ports V2 _structural_anchor over index items: the
-// best-scoring fresh item gives the repository, symbol and file. A single
+// best-scoring fresh item gives the repository, symbol and file. Unlike V2,
+// an item whose symbol is named in the task wins over higher-scoring
+// partial matches ("who calls Build" anchors Build, not crgCalls). A single
 // included repository is the fallback anchor.
-func structuralAnchor(items []model.ContextItem, included []workspace.Repository) (repo workspace.Repository, symbol, file string, ok bool) {
-	ranked := slices.Clone(items)
-	sort.SliceStable(ranked, func(i, j int) bool {
-		if ranked[i].Stale != ranked[j].Stale {
-			return !ranked[i].Stale
-		}
-		return ranked[i].Score > ranked[j].Score
-	})
-	for _, it := range ranked {
+func structuralAnchor(task string, items []model.ContextItem, included []workspace.Repository) (repo workspace.Repository, symbol, file string, ok bool) {
+	named := map[string]bool{}
+	for _, w := range identRE.FindAllString(task, -1) {
+		named[strings.ToLower(w)] = true
+	}
+	type cand struct {
+		repo workspace.Repository
+		h    indexHeader
+		it   model.ContextItem
+	}
+	var cands []cand
+	for _, it := range items {
 		if it.Source != "lightweight_index" {
 			continue
 		}
@@ -40,9 +45,22 @@ func structuralAnchor(items []model.ContextItem, included []workspace.Repository
 				var h indexHeader
 				first, _, _ := strings.Cut(it.Text, "\n")
 				_ = json.Unmarshal([]byte(first), &h)
-				return r, h.Symbol, h.File, true
+				cands = append(cands, cand{r, h, it})
 			}
 		}
+	}
+	sort.SliceStable(cands, func(i, j int) bool {
+		a, b := cands[i], cands[j]
+		if a.it.Stale != b.it.Stale {
+			return !a.it.Stale
+		}
+		if na, nb := named[strings.ToLower(a.h.Symbol)], named[strings.ToLower(b.h.Symbol)]; na != nb {
+			return na
+		}
+		return a.it.Score > b.it.Score
+	})
+	if len(cands) > 0 {
+		return cands[0].repo, cands[0].h.Symbol, cands[0].h.File, true
 	}
 	if len(included) == 1 {
 		return included[0], "", "", true
@@ -95,7 +113,7 @@ func expandStructural(ctx context.Context, g *gathered, root, task string, opt O
 	included []workspace.Repository, changed []string, cfg config.Config, threshold float64,
 	skipped, errs map[string]string) bool {
 	refs := slices.Contains(plan.StructuralPatterns, "references_to")
-	repo, symbol, file, ok := structuralAnchor(g.items, included)
+	repo, symbol, file, ok := structuralAnchor(task, g.items, included)
 	if opt.Symbol != "" {
 		symbol = opt.Symbol
 	}
@@ -121,7 +139,7 @@ func expandStructural(ctx context.Context, g *gathered, root, task string, opt O
 	dctx, cancel := context.WithTimeout(ctx, structuralDeadline)
 	defer cancel()
 	q := structural.Query{Text: task, Symbol: symbol, Changed: files, Limit: max(1, cfg.Context.MaxResultsPerSource),
-		Patterns: plan.StructuralPatterns, MaxCalls: cfg.Execution.OrchestrationBudget.MaxCRGCalls}
+		Patterns: plan.StructuralPatterns, MaxCalls: cfg.Execution.OrchestrationBudget.MaxCRGCalls, File: file}
 	ran := false
 	for _, s := range steps {
 		if EvaluateSufficiency(task, g.items, true, plan.StructuralPatterns, threshold).StructuralComplete {

@@ -10,8 +10,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/model"
 	"github.com/Taki7980/ai-workflow-v3/internal/structural"
 	"github.com/Taki7980/ai-workflow-v3/internal/structural/structuraltest"
+	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
 const fooGo = "package pkg\n\nfunc Foo() {}\n\nfunc Bar() { Foo() }\n"
@@ -154,5 +156,22 @@ func gitInit(t *testing.T, dir string) {
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, out)
+	}
+}
+
+func TestStructuralAnchorPrefersSymbolNamedInTask(t *testing.T) {
+	repo := workspace.Repository{RelativePath: ".", RepositoryID: "r"}
+	item := func(symbol string, score float64) model.ContextItem {
+		return model.ContextItem{Source: "lightweight_index", Score: score,
+			Text:     `{"symbol":"` + symbol + `","kind":"func","file":"x.go","line":1,"repository":"."}` + "\nbody",
+			Metadata: map[string]any{"repository": "."}}
+	}
+	_, symbol, _, ok := structuralAnchor("who calls Build", []model.ContextItem{item("crgCalls", 9), item("Build", 3)}, []workspace.Repository{repo})
+	if !ok || symbol != "Build" {
+		t.Fatalf("anchor %q", symbol)
+	}
+	_, symbol, _, _ = structuralAnchor("what breaks here", []model.ContextItem{item("crgCalls", 9), item("Build", 3)}, []workspace.Repository{repo})
+	if symbol != "crgCalls" {
+		t.Fatalf("fallback anchor %q", symbol)
 	}
 }

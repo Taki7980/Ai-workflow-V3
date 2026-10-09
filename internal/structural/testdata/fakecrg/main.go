@@ -50,10 +50,13 @@ func main() {
 		}
 		return
 	case "query":
-		if len(args) < 2 {
+		if len(args) < 3 {
 			os.Exit(2)
 		}
 		name = args[1]
+		if os.Getenv("CRG_FAKE_AMBIGUOUS") == "1" && !strings.Contains(args[2], "::") {
+			name = "ambiguous"
+		}
 	}
 	b, err := os.ReadFile(filepath.Join(os.Getenv("CRG_FAKE_FIXTURES"), name+".json"))
 	if err != nil {

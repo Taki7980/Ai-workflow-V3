@@ -307,3 +307,21 @@ func TestRewritePathsRedactsUnresolvedAbsolute(t *testing.T) {
 		t.Fatalf("bare symbol target changed: %v", p["target"])
 	}
 }
+
+func TestCRGContextResolvesAmbiguousAnchor(t *testing.T) {
+	ws := readyGraph(t)
+	log := fakeLog(t)
+	t.Setenv("CRG_FAKE_AMBIGUOUS", "1")
+	items := CRGContext(context.Background(), ws, ".", Query{Text: "who calls Foo", Symbol: "Foo", File: "pkg/a.go", Patterns: []string{"callers_of"}, Limit: 6, MaxCalls: 6})
+	if len(items) != 1 || items[0].Metadata["anchor"] != "pkg/a.go::Foo" {
+		t.Fatalf("got %+v", items)
+	}
+	calls := logLines(t, log)
+	if len(calls) != 2 || !strings.Contains(calls[1], "/pkg/a.go::Foo") {
+		t.Fatalf("calls %v", calls)
+	}
+	// Without a file to disambiguate, an ambiguous anchor yields no evidence.
+	if items := CRGContext(context.Background(), ws, ".", Query{Text: "who calls Foo", Symbol: "Foo", Patterns: []string{"callers_of"}, Limit: 6, MaxCalls: 6}); len(items) != 0 {
+		t.Fatalf("guessed among ambiguous candidates: %+v", items)
+	}
+}

@@ -24,7 +24,8 @@ type Query struct {
 	Changed  []string // repository-relative slash paths
 	Limit    int
 	Patterns []string
-	MaxCalls int // CRG subprocess calls allowed; 0 allows none
+	MaxCalls int    // CRG subprocess calls allowed; 0 allows none
+	File     string // repository-relative file of Symbol, used to disambiguate
 }
 
 var crgTimeout = 8 * time.Second
@@ -371,6 +372,15 @@ type crgRun struct {
 // call runs one CRG subcommand and returns its payload only for exit 0 and a
 // JSON object with status "ok".
 func (r *crgRun) call(args ...string) map[string]any {
+	p := r.raw(args...)
+	if p == nil || p["status"] != "ok" {
+		return nil
+	}
+	return p
+}
+
+// raw returns any JSON object CRG prints on exit 0, whatever its status.
+func (r *crgRun) raw(args ...string) map[string]any {
 	if r.calls >= r.maxCalls {
 		return nil
 	}
@@ -387,7 +397,7 @@ func (r *crgRun) call(args ...string) map[string]any {
 		return nil
 	}
 	payload := map[string]any{}
-	if json.Unmarshal(out.buf.Bytes(), &payload) != nil || payload["status"] != "ok" {
+	if json.Unmarshal(out.buf.Bytes(), &payload) != nil {
 		return nil
 	}
 	return payload
@@ -499,7 +509,14 @@ func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextIte
 		if pattern == "impact" || pattern == "architecture" || pattern == "references_to" || anchor == "" {
 			continue
 		}
-		if p := r.call("query", pattern, anchor); p != nil {
+		p := r.raw("query", pattern, anchor)
+		if p != nil && p["status"] == "ambiguous" {
+			if qn := disambiguate(root, p, q.File, anchor); qn != "" {
+				anchor = qn
+				p = r.raw("query", pattern, anchor)
+			}
+		}
+		if p != nil && p["status"] == "ok" {
 			add(p, pattern, 9, shown())
 		}
 		if len(items) >= limit {
@@ -514,4 +531,32 @@ func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextIte
 	vq := q
 	vq.Symbol = anchor
 	return Validate(ctx, ws, rel, items[:min(len(items), limit)], vq)
+}
+
+// disambiguate picks the one ambiguous-anchor candidate named name and
+// defined in file (repository-relative) and returns its raw qualified name.
+// CRG's candidate list is fuzzy, so both must match exactly; without exactly
+// one match it returns "" rather than guess.
+func disambiguate(root string, payload map[string]any, file, name string) string {
+	if file == "" {
+		return ""
+	}
+	want := strings.ToLower(strings.ReplaceAll(file, `\`, "/"))
+	found := ""
+	for _, c := range list(payload["candidates"]) {
+		row, ok := c.(map[string]any)
+		if !ok {
+			continue
+		}
+		qn := firstString(row, "qualified_name")
+		rel, inside, _ := relPath(root, firstString(row, "file_path", "relative_path", "path"))
+		if qn == "" || !inside || strings.ToLower(rel) != want || firstString(row, "name") != name {
+			continue
+		}
+		if found != "" {
+			return ""
+		}
+		found = qn
+	}
+	return found
 }
