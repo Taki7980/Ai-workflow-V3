@@ -442,7 +442,7 @@ func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextIte
 			add(p, pattern, 9, shown())
 		}
 		if len(items) >= limit {
-			return items[:limit]
+			break
 		}
 	}
 	if has(requested, "architecture") && len(items) < limit {
@@ -450,5 +450,7 @@ func CRGContext(ctx context.Context, ws, rel string, q Query) []model.ContextIte
 			add(p, "architecture", 8, "")
 		}
 	}
-	return items[:min(len(items), limit)]
+	vq := q
+	vq.Symbol = anchor
+	return Validate(ctx, ws, rel, items[:min(len(items), limit)], vq)
 }

@@ -98,7 +98,6 @@ func b2f(b bool) float64 {
 
 // EvaluateSelective ports V2 evaluate_selective_retrieval. Repository identity
 // is read from item.Metadata["repository_id"].
-// ponytail: verified structural-conflict check omitted; no structural items exist until the CRG/SCIP adapter lands.
 func EvaluateSelective(items []model.ContextItem, s Sufficiency, expectedRepoIDs map[string]bool, minCoverage float64) Selective {
 	if len(items) == 0 {
 		return Selective{"no_context", false, 0, []string{"no_selected_context"}}
@@ -109,6 +108,9 @@ func EvaluateSelective(items []model.ContextItem, s Sufficiency, expectedRepoIDs
 				return Selective{"wrong_repository", false, 0, []string{"evidence_repository_outside_routing_plan"}}
 			}
 		}
+	}
+	if structuralConflict(items) {
+		return Selective{"conflicting", false, 0, []string{"verified_structural_evidence_conflicts"}}
 	}
 	fresh := false
 	for _, it := range items {
@@ -146,4 +148,49 @@ func EvidenceState(lane model.Lane, sufficient bool) string {
 		return "abstain"
 	}
 	return "requires_exploration"
+}
+
+// structuralConflict ports V2 _structural_conflict: confirmed structural
+// evidence that both reports results and verifies absence for the same
+// (pattern, anchor) contradicts itself.
+func structuralConflict(items []model.ContextItem) bool {
+	states := map[[2]string]map[bool]bool{}
+	for _, it := range items {
+		if it.Source != "code_review_graph" && it.Source != "scip" {
+			continue
+		}
+		if v, _ := it.Metadata["structural_valid"].(bool); !v {
+			continue
+		}
+		if it.Source == "code_review_graph" {
+			if c, _ := it.Metadata["evidence_confidence"].(string); c != "corroborated" && c != "verified" {
+				continue
+			}
+		}
+		pattern := strings.TrimSpace(metaString(it.Metadata, "pattern"))
+		anchor := ""
+		for _, k := range []string{"symbol", "qualified_name", "path", "file"} {
+			if anchor = strings.TrimSpace(metaString(it.Metadata, k)); anchor != "" {
+				break
+			}
+		}
+		if pattern == "" || anchor == "" {
+			continue
+		}
+		key := [2]string{pattern, anchor}
+		if states[key] == nil {
+			states[key] = map[bool]bool{}
+		}
+		empty, _ := it.Metadata["empty_verified"].(bool)
+		states[key][empty] = true
+		if len(states[key]) > 1 {
+			return true
+		}
+	}
+	return false
+}
+
+func metaString(m map[string]any, k string) string {
+	s, _ := m[k].(string)
+	return s
 }
