@@ -684,6 +684,126 @@
         "structural_complete": true
       },
       "minimum_coverage": 0.15
+    },
+    {
+      "name": "structural_conflict_verified",
+      "items": [
+        {
+          "source": "code_review_graph",
+          "text": "verifiedFalse",
+          "score": 9.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "evidence_confidence": "verified",
+            "pattern": "callers_of",
+            "symbol": "Foo",
+            "empty_verified": false
+          }
+        },
+        {
+          "source": "code_review_graph",
+          "text": "corroboratedTrue",
+          "score": 9.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "evidence_confidence": "corroborated",
+            "pattern": "callers_of",
+            "symbol": "Foo",
+            "empty_verified": true
+          }
+        }
+      ],
+      "sufficiency": {
+        "score": 0.9,
+        "sufficient": true,
+        "lexical_coverage": 1.0,
+        "source_diversity": 1,
+        "exact_match": true,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "structural_conflict_candidate_ignored",
+      "items": [
+        {
+          "source": "code_review_graph",
+          "text": "verifiedFalse",
+          "score": 9.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "evidence_confidence": "verified",
+            "pattern": "callers_of",
+            "symbol": "Foo",
+            "empty_verified": false
+          }
+        },
+        {
+          "source": "code_review_graph",
+          "text": "candidateTrue",
+          "score": 9.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "evidence_confidence": "candidate",
+            "pattern": "callers_of",
+            "symbol": "Foo",
+            "empty_verified": true
+          }
+        }
+      ],
+      "sufficiency": {
+        "score": 0.9,
+        "sufficient": true,
+        "lexical_coverage": 1.0,
+        "source_diversity": 1,
+        "exact_match": true,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "structural_conflict_scip",
+      "items": [
+        {
+          "source": "scip",
+          "text": "verifiedFalse",
+          "score": 9.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "evidence_confidence": "verified",
+            "pattern": "callers_of",
+            "symbol": "Foo",
+            "empty_verified": false
+          }
+        },
+        {
+          "source": "scip",
+          "text": "candidateTrue",
+          "score": 9.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "evidence_confidence": "candidate",
+            "pattern": "callers_of",
+            "symbol": "Foo",
+            "empty_verified": true
+          }
+        }
+      ],
+      "sufficiency": {
+        "score": 0.9,
+        "sufficient": true,
+        "lexical_coverage": 1.0,
+        "source_diversity": 1,
+        "exact_match": true,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
     }
   ],
   "evidence_state": [
@@ -1031,6 +1151,457 @@
         "structural_context": false,
         "confidence": 0.5
       }
+    }
+  ],
+  "crg_compact": [
+    {
+      "name": "callers_truncated",
+      "payload": {
+        "status": "ok",
+        "pattern": "callers_of",
+        "target": "pkg/a.go::Foo",
+        "summary": "Found 3 result(s)",
+        "result_count": 3,
+        "results": [
+          {
+            "file_path": "pkg/a.go",
+            "kind": "Function",
+            "line_start": 5,
+            "name": "Bar",
+            "qualified_name": "pkg/a.go::Bar"
+          },
+          {
+            "file_path": "pkg/b.go",
+            "kind": "Function",
+            "line_start": 2,
+            "name": "Baz",
+            "qualified_name": "pkg/b.go::Baz"
+          },
+          {
+            "file_path": "pkg/c.go",
+            "kind": "Function",
+            "line_start": 9,
+            "name": "Qux",
+            "qualified_name": "pkg/c.go::Qux"
+          }
+        ],
+        "edges": [
+          {
+            "kind": "CALLS",
+            "source": "pkg/a.go::Bar",
+            "target": "pkg/a.go::Foo"
+          }
+        ]
+      },
+      "pattern": "callers_of",
+      "limit": 2
+    },
+    {
+      "name": "impact_counts_nodes",
+      "payload": {
+        "status": "ok",
+        "summary": "Blast radius",
+        "impacted_files": [
+          "pkg/a.go",
+          "pkg/b.go",
+          "pkg/c.go"
+        ],
+        "impacted_nodes": [
+          {
+            "file_path": "pkg/a.go",
+            "kind": "Function",
+            "line_start": 5,
+            "name": "Bar",
+            "qualified_name": "pkg/a.go::Bar"
+          },
+          {
+            "file_path": "pkg/b.go",
+            "kind": "Function",
+            "line_start": 2,
+            "name": "Baz",
+            "qualified_name": "pkg/b.go::Baz"
+          }
+        ],
+        "edges": [],
+        "truncated": false,
+        "confidence": "graph current"
+      },
+      "pattern": "impact",
+      "limit": 2
+    },
+    {
+      "name": "architecture_lists_only",
+      "payload": {
+        "status": "ok",
+        "summary": "Architecture: 2 communities",
+        "communities": [
+          {
+            "id": 1,
+            "name": "pkg",
+            "size": 2
+          },
+          {
+            "id": 2,
+            "name": "cmd",
+            "size": 1
+          }
+        ],
+        "hub_nodes": "not a list",
+        "truncated": true
+      },
+      "pattern": "architecture",
+      "limit": 1
+    }
+  ],
+  "crg_item": [
+    {
+      "name": "callers_anchor",
+      "payload": {
+        "status": "ok",
+        "pattern": "callers_of",
+        "target": "pkg/a.go::Foo",
+        "summary": "Found 3 result(s)",
+        "result_count": 3,
+        "results": [
+          {
+            "file_path": "pkg/a.go",
+            "kind": "Function",
+            "line_start": 5,
+            "name": "Bar",
+            "qualified_name": "pkg/a.go::Bar"
+          },
+          {
+            "file_path": "pkg/b.go",
+            "kind": "Function",
+            "line_start": 2,
+            "name": "Baz",
+            "qualified_name": "pkg/b.go::Baz"
+          },
+          {
+            "file_path": "pkg/c.go",
+            "kind": "Function",
+            "line_start": 9,
+            "name": "Qux",
+            "qualified_name": "pkg/c.go::Qux"
+          }
+        ],
+        "edges": [
+          {
+            "kind": "CALLS",
+            "source": "pkg/a.go::Bar",
+            "target": "pkg/a.go::Foo"
+          }
+        ]
+      },
+      "pattern": "callers_of",
+      "score": 9,
+      "limit": 6,
+      "anchor": "Foo"
+    },
+    {
+      "name": "empty_verified",
+      "payload": {
+        "status": "ok",
+        "results": [],
+        "confidence": "Real absence; graph current"
+      },
+      "pattern": "tests_for",
+      "score": 9,
+      "limit": 6,
+      "anchor": ""
+    },
+    {
+      "name": "empty_unverified",
+      "payload": {
+        "status": "ok",
+        "results": [],
+        "confidence": "real absence, current, unverified"
+      },
+      "pattern": "tests_for",
+      "score": 9,
+      "limit": 6,
+      "anchor": "Foo"
+    }
+  ],
+  "crg_verified_empty": [
+    {
+      "name": "real_absence_current",
+      "payload": {
+        "confidence": "Real absence; graph current"
+      }
+    },
+    {
+      "name": "unverified",
+      "payload": {
+        "confidence": "real absence, current, unverified"
+      }
+    },
+    {
+      "name": "missing",
+      "payload": {}
+    },
+    {
+      "name": "not_indexed",
+      "payload": {
+        "confidence": "target not indexed: so this 0 is not evidence"
+      }
+    }
+  ],
+  "scip_items": [
+    {
+      "name": "symbol_all_roles",
+      "payload": {
+        "documents": [
+          {
+            "relativePath": "pkg/a.go",
+            "language": "go",
+            "symbols": [
+              {
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+                "displayName": "Foo"
+              }
+            ],
+            "occurrences": [
+              {
+                "range": [
+                  2,
+                  5,
+                  8
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+                "symbolRoles": 1
+              },
+              {
+                "range": [
+                  4,
+                  13,
+                  16
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              },
+              {
+                "range": [
+                  4,
+                  5,
+                  8
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Bar().",
+                "symbolRoles": 1
+              }
+            ]
+          },
+          {
+            "relative_path": "../escape.go",
+            "language": "go",
+            "occurrences": [
+              {
+                "range": [
+                  0,
+                  0,
+                  3
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              }
+            ]
+          },
+          {
+            "relativePath": "pkg/missing.go",
+            "occurrences": [
+              {
+                "range": [
+                  7
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              }
+            ]
+          }
+        ]
+      },
+      "query": "",
+      "symbol": "Foo",
+      "changed_files": [
+        "pkg/a.go"
+      ],
+      "limit": 10,
+      "patterns": []
+    },
+    {
+      "name": "references_only",
+      "payload": {
+        "documents": [
+          {
+            "relativePath": "pkg/a.go",
+            "language": "go",
+            "symbols": [
+              {
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+                "displayName": "Foo"
+              }
+            ],
+            "occurrences": [
+              {
+                "range": [
+                  2,
+                  5,
+                  8
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+                "symbolRoles": 1
+              },
+              {
+                "range": [
+                  4,
+                  13,
+                  16
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              },
+              {
+                "range": [
+                  4,
+                  5,
+                  8
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Bar().",
+                "symbolRoles": 1
+              }
+            ]
+          },
+          {
+            "relative_path": "../escape.go",
+            "language": "go",
+            "occurrences": [
+              {
+                "range": [
+                  0,
+                  0,
+                  3
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              }
+            ]
+          },
+          {
+            "relativePath": "pkg/missing.go",
+            "occurrences": [
+              {
+                "range": [
+                  7
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              }
+            ]
+          }
+        ]
+      },
+      "query": "",
+      "symbol": "Foo",
+      "changed_files": [],
+      "limit": 10,
+      "patterns": [
+        "references_to"
+      ]
+    },
+    {
+      "name": "query_anchor",
+      "payload": {
+        "documents": [
+          {
+            "relativePath": "pkg/a.go",
+            "language": "go",
+            "symbols": [
+              {
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+                "displayName": "Foo"
+              }
+            ],
+            "occurrences": [
+              {
+                "range": [
+                  2,
+                  5,
+                  8
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo().",
+                "symbolRoles": 1
+              },
+              {
+                "range": [
+                  4,
+                  13,
+                  16
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              },
+              {
+                "range": [
+                  4,
+                  5,
+                  8
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Bar().",
+                "symbolRoles": 1
+              }
+            ]
+          },
+          {
+            "relative_path": "../escape.go",
+            "language": "go",
+            "occurrences": [
+              {
+                "range": [
+                  0,
+                  0,
+                  3
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              }
+            ]
+          },
+          {
+            "relativePath": "pkg/missing.go",
+            "occurrences": [
+              {
+                "range": [
+                  7
+                ],
+                "symbol": "scip-go gomod example v1 `example/pkg`/Foo()."
+              }
+            ]
+          }
+        ]
+      },
+      "query": "where is Bar defined",
+      "symbol": null,
+      "changed_files": [],
+      "limit": 10,
+      "patterns": []
+    }
+  ],
+  "repo_key": [
+    {
+      "name": "root",
+      "input": ""
+    },
+    {
+      "name": "dot",
+      "input": "."
+    },
+    {
+      "name": "nested",
+      "input": "services/api"
+    },
+    {
+      "name": "unsafe",
+      "input": "a b/c!d"
+    },
+    {
+      "name": "dots",
+      "input": "..."
+    },
+    {
+      "name": "backslash",
+      "input": "x\\y"
     }
   ]
 }

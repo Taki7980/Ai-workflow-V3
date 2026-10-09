@@ -17,6 +17,7 @@ This repository contains the first native V3 migration slice.
 - BM25 and reciprocal-rank-fusion primitives;
 - bounded external provider process protocol foundation;
 - `setup`, `route`, `repos list`, `repos refresh`, `index`, `context`, `doctor`, `version`;
+- structural adapters: code-review-graph queries and SCIP index items with freshness manifests, evidence confidence tiers (candidate/corroborated/verified) and `graph`/`scip` sync and status commands;
 - Linux/macOS/Windows CI matrix for Go 1.26 and Go 1.27;
 - CodeQL workflow.
 
@@ -38,4 +39,4 @@ The local verification host currently has an older Go toolchain, so the source w
 
 The core workflow loop is migrated: `brief` (evidence sufficiency, selective gate, evidence state, adaptive token budget, workspace fingerprint, orchestration contract, json/markdown/prompt formats), `handoff`, `verify`, `compress`, and JSONL durable `memory`, all covered by differential fixtures.
 
-Remaining migration gates: CRG/SCIP structural adapters, semantic retrieval, provider sandbox/process-tree parity, telemetry/replay, and the advisory research stacks (learning, deployment policy, SQLite production state), which are intentionally not ported unless users need them.
+Remaining migration gates: semantic retrieval, multi-repository structural fan-out, provider sandbox/process-tree parity, telemetry/replay, and the advisory research stacks (learning, deployment policy, SQLite production state), which are intentionally not ported unless users need them.

@@ -7,8 +7,8 @@ The active implementation tracker is GitHub issue #2. The order below is intenti
 3. MMR + budget-aware context selection — done
 4. Parser abstraction + Tree-sitter pilot — done
 5. Incremental index freshness — done
-6. Structural retrieval adapter + SCIP path — next
-7. Optional semantic retriever + RRF evaluation
+6. Structural retrieval adapter + SCIP path — done (CRG CLI + SCIP JSON, V3 manifests)
+7. Optional semantic retriever + RRF evaluation — next
 8. Provider execution hardening / optional stronger sandbox
 9. Telemetry + replay schema
 10. SQLite production state

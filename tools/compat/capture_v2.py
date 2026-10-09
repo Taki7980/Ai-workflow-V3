@@ -112,6 +112,7 @@ def main() -> int:
         )
 
     capture_workflow_contracts(cases, outputs, cfg)
+    capture_structural_contracts(cases, outputs, Path(args.cases).resolve().parent)
 
     Path(args.output).write_text(
         json.dumps(outputs, indent=2, sort_keys=True) + "\n",
@@ -227,6 +228,52 @@ def capture_workflow_contracts(cases: dict, outputs: dict, cfg: dict) -> None:
 
     for case in cases.get("model_tier", []):
         outputs["model_tier"][case["name"]] = model_tier(decision(case["decision"]), cfg)
+
+
+def capture_structural_contracts(cases: dict, outputs: dict, cases_dir: Path) -> None:
+    """Capture the structural adapter contracts (CRG payloads, SCIP items, repo keys)."""
+    from ai_workflow.code_review_graph import _repo_key
+    from ai_workflow.context_broker import _compact_crg_payload, _crg_item, _verified_empty_crg
+    from ai_workflow.scip import items_from_scip_payload
+
+    def item_dict(item) -> dict:
+        return {
+            "source": item.source,
+            "text": item.text,
+            "score": item.score,
+            "stale": item.stale,
+            "metadata": dict(item.metadata),
+        }
+
+    for key in ("crg_compact", "crg_item", "crg_verified_empty", "scip_items", "repo_key"):
+        outputs[key] = {}
+
+    for case in cases.get("crg_compact", []):
+        outputs["crg_compact"][case["name"]] = _compact_crg_payload(
+            case["payload"], case["pattern"], case["limit"]
+        )
+
+    for case in cases.get("crg_item", []):
+        outputs["crg_item"][case["name"]] = item_dict(_crg_item(
+            case["payload"], case["pattern"], float(case["score"]), case["limit"],
+            anchor=case["anchor"] or None,
+        ))
+
+    for case in cases.get("crg_verified_empty", []):
+        outputs["crg_verified_empty"][case["name"]] = _verified_empty_crg(case["payload"])
+
+    scip_root = (cases_dir / "fixtures" / "scip-root").resolve()
+    for case in cases.get("scip_items", []):
+        outputs["scip_items"][case["name"]] = [
+            item_dict(item)
+            for item in items_from_scip_payload(
+                scip_root, case["payload"], case["query"], case["symbol"],
+                case["changed_files"], case["limit"], patterns=tuple(case["patterns"]),
+            )
+        ]
+
+    for case in cases.get("repo_key", []):
+        outputs["repo_key"][case["name"]] = _repo_key(case["input"])
 
 
 if __name__ == "__main__":
