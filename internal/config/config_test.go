@@ -81,3 +81,35 @@ func TestSelectorValidationRejectsInvalidCandidateCap(t *testing.T) {
 		t.Fatal("expected max_selector_candidates validation error")
 	}
 }
+
+func TestDefaultsMatchV2Document(t *testing.T) {
+	check := func(name string, c Config) {
+		t.Helper()
+		want := OrchestrationBudget{MaxAgentSlots: 4, MaxCRGCalls: 6, MaxGraphDepth: 3, ReviewPasses: 2, VerificationPasses: 2}
+		if c.Execution.OrchestrationBudget != want {
+			t.Fatalf("%s orchestration budget = %+v", name, c.Execution.OrchestrationBudget)
+		}
+		if !c.Context.SelectiveRetrieval.Enabled || c.Context.SelectiveRetrieval.MinimumCoverage != 0.15 {
+			t.Fatalf("%s selective = %+v", name, c.Context.SelectiveRetrieval)
+		}
+		if c.Execution.Superpowers.Mode != "auto" {
+			t.Fatalf("%s superpowers mode = %q", name, c.Execution.Superpowers.Mode)
+		}
+		if c.Context.Snippet() != 6 {
+			t.Fatalf("%s snippet lines = %d", name, c.Context.Snippet())
+		}
+	}
+	check("Default", Default())
+	b, err := json.Marshal(DefaultDocument())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Config
+	if err := json.Unmarshal(b, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	check("DefaultDocument", decoded)
+	if _, ok := DefaultDocument()["context"].(map[string]any)["snippet_lines"]; ok {
+		t.Fatal("snippet_lines must not enter the frozen V2 document")
+	}
+}
