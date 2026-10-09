@@ -18,7 +18,13 @@ func Compress(text string, maxLines, maxChars int) string {
 		tail := maxLines - head
 		kept := append([]string{}, lines[:head]...)
 		kept = append(kept, fmt.Sprintf("... [%d LINES OMITTED] ...", len(lines)-maxLines))
-		lines = append(kept, lines[len(lines)-tail:]...)
+		// V2 slices lines[-tail:]; Python's lines[-0:] is the whole list, so
+		// tail == 0 (maxLines == 1) re-appends every line. Mirrored for parity.
+		start := len(lines) - tail
+		if tail == 0 {
+			start = 0
+		}
+		lines = append(kept, lines[start:]...)
 	}
 	out := strings.Join(lines, "\n")
 	if r := []rune(out); len(r) > maxChars {

@@ -212,5 +212,825 @@
         }
       ]
     }
+  ],
+  "orchestration": [
+    {
+      "name": "answer_sufficient",
+      "decision": {
+        "lane": "answer",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "exact",
+      "sufficient": true,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": true
+      }
+    },
+    {
+      "name": "small_superpowers",
+      "decision": {
+        "lane": "small",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "exact",
+      "sufficient": true,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": true
+      }
+    },
+    {
+      "name": "small_native_gap",
+      "decision": {
+        "lane": "small",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "mixed",
+      "sufficient": false,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": false,
+        "code_review_graph": false
+      }
+    },
+    {
+      "name": "full_high_structural_all",
+      "decision": {
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "structural",
+      "sufficient": false,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [
+        "a",
+        "b",
+        "c"
+      ],
+      "workspace_count": 2,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": true
+      }
+    },
+    {
+      "name": "full_medium_two_changed",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "mixed",
+      "sufficient": true,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [
+        "a",
+        "b"
+      ],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": false,
+        "code_review_graph": true
+      }
+    },
+    {
+      "name": "full_selective_reject",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": true,
+        "confidence": 0.5
+      },
+      "intent": "semantic",
+      "sufficient": true,
+      "selective_enabled": true,
+      "selective_accept": false,
+      "changed_files": [],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": true
+      }
+    },
+    {
+      "name": "full_selective_disabled",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "exact",
+      "sufficient": true,
+      "selective_enabled": false,
+      "selective_accept": false,
+      "changed_files": [],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": false
+      }
+    },
+    {
+      "name": "full_budget_override",
+      "decision": {
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "structural",
+      "sufficient": false,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [
+        "a",
+        "b",
+        "c",
+        "d",
+        "e"
+      ],
+      "workspace_count": 4,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": true
+      },
+      "budget": {
+        "max_agent_slots": 1,
+        "max_crg_calls": 1,
+        "max_graph_depth": 1,
+        "review_passes": 1,
+        "verification_passes": 1
+      }
+    },
+    {
+      "name": "full_budget_floors",
+      "decision": {
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "intent": "exact",
+      "sufficient": true,
+      "selective_enabled": true,
+      "selective_accept": true,
+      "changed_files": [],
+      "workspace_count": 1,
+      "providers": {
+        "superpowers": true,
+        "code_review_graph": true
+      },
+      "budget": {
+        "max_agent_slots": 0,
+        "max_crg_calls": -3,
+        "max_graph_depth": 0,
+        "review_passes": 0,
+        "verification_passes": 0
+      }
+    }
+  ],
+  "sufficiency": [
+    {
+      "name": "empty",
+      "query": "retry payment",
+      "items": [],
+      "structural_required": false,
+      "structural_patterns": [],
+      "threshold": 0.72
+    },
+    {
+      "name": "full_score",
+      "query": "retry payment",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "func RetryPayment",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        },
+        {
+          "source": "durable_memory",
+          "text": "retry payment backoff",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "structural_required": false,
+      "structural_patterns": [],
+      "threshold": 0.72
+    },
+    {
+      "name": "partial_coverage",
+      "query": "retry payment idempotency key",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "func RetryPayment()",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "structural_required": false,
+      "structural_patterns": [],
+      "threshold": 0.72
+    },
+    {
+      "name": "structural_missing",
+      "query": "callers of ProcessPayment",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "ProcessPayment callers",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "structural_required": true,
+      "structural_patterns": [
+        "callers"
+      ],
+      "threshold": 0.5
+    },
+    {
+      "name": "structural_matched",
+      "query": "callers of ProcessPayment",
+      "items": [
+        {
+          "source": "code_review_graph",
+          "text": "ProcessPayment callers",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "pattern": "callers"
+          }
+        },
+        {
+          "source": "lightweight_index",
+          "text": "callers of ProcessPayment",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "structural_required": true,
+      "structural_patterns": [
+        "callers"
+      ],
+      "threshold": 0.72
+    },
+    {
+      "name": "structural_any",
+      "query": "impact of change",
+      "items": [
+        {
+          "source": "scip",
+          "text": "x",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {
+            "structural_valid": true,
+            "pattern": "references"
+          }
+        }
+      ],
+      "structural_required": true,
+      "structural_patterns": [],
+      "threshold": 0.9
+    },
+    {
+      "name": "camel_and_snake",
+      "query": "parse_config loadSettings",
+      "items": [
+        {
+          "source": "targeted_source",
+          "text": "def parse_config(): load_settings()",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        },
+        {
+          "source": "lightweight_index",
+          "text": "func LoadSettings",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "structural_required": false,
+      "structural_patterns": [],
+      "threshold": 0.72
+    }
+  ],
+  "selective": [
+    {
+      "name": "no_context",
+      "items": [],
+      "sufficiency": {
+        "score": 0.9,
+        "sufficient": true,
+        "lexical_coverage": 0.9,
+        "source_diversity": 1,
+        "exact_match": false,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "all_stale",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "a",
+          "score": 1.0,
+          "stale": true,
+          "metadata": {}
+        }
+      ],
+      "sufficiency": {
+        "score": 0.9,
+        "sufficient": true,
+        "lexical_coverage": 0.9,
+        "source_diversity": 1,
+        "exact_match": false,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "below_floor",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "a",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "sufficiency": {
+        "score": 0.1,
+        "sufficient": false,
+        "lexical_coverage": 0.1,
+        "source_diversity": 1,
+        "exact_match": false,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "partial_structural",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "a",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "sufficiency": {
+        "score": 0.5,
+        "sufficient": false,
+        "lexical_coverage": 0.5,
+        "source_diversity": 1,
+        "exact_match": false,
+        "structural_complete": false
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "partial_threshold",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "a",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        },
+        {
+          "source": "lightweight_index",
+          "text": "b",
+          "score": 1.0,
+          "stale": true,
+          "metadata": {}
+        }
+      ],
+      "sufficiency": {
+        "score": 0.6,
+        "sufficient": false,
+        "lexical_coverage": 0.6,
+        "source_diversity": 1,
+        "exact_match": false,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    },
+    {
+      "name": "supported",
+      "items": [
+        {
+          "source": "lightweight_index",
+          "text": "a",
+          "score": 1.0,
+          "stale": false,
+          "metadata": {}
+        }
+      ],
+      "sufficiency": {
+        "score": 0.91,
+        "sufficient": true,
+        "lexical_coverage": 0.95,
+        "source_diversity": 2,
+        "exact_match": true,
+        "structural_complete": true
+      },
+      "minimum_coverage": 0.15
+    }
+  ],
+  "evidence_state": [
+    {
+      "name": "sufficient_full",
+      "lane": "full",
+      "sufficient": true
+    },
+    {
+      "name": "answer_abstain",
+      "lane": "answer",
+      "sufficient": false
+    },
+    {
+      "name": "small_explore",
+      "lane": "small",
+      "sufficient": false
+    },
+    {
+      "name": "full_explore",
+      "lane": "full",
+      "sufficient": false
+    }
+  ],
+  "handoff_validate": [
+    {
+      "name": "valid",
+      "text": "# Handoff\n- **Lane / risk**: full / high\n- **Goal / state**: ship it / routed\n- **Exact paths+symbols**: none yet\n- **Context sources**: lightweight_index\n- **Ordered edits**: execution provider = native\n- **Invariants**: preserve existing contracts unless task explicitly changes them\n- **Changed files**: none\n- **Checks**: define focused checks before build\n- **Blockers**: none\n- **Exact next step**: inspect bounded context and finalize exact edit sites\n",
+      "max_lines": 30
+    },
+    {
+      "name": "over_cap",
+      "text": "# Handoff\n- **Lane / risk**: full / high\n- **Goal / state**: ship it / routed\n- **Exact paths+symbols**: none yet\n- **Context sources**: lightweight_index\n- **Ordered edits**: execution provider = native\n- **Invariants**: preserve existing contracts unless task explicitly changes them\n- **Changed files**: none\n- **Checks**: define focused checks before build\n- **Blockers**: none\n- **Exact next step**: inspect bounded context and finalize exact edit sites\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\nx\n",
+      "max_lines": 30
+    },
+    {
+      "name": "missing_fields",
+      "text": "# Handoff\n- **Lane / risk**: small / low\n",
+      "max_lines": 30
+    },
+    {
+      "name": "placeholder",
+      "text": "# Handoff\n- **Lane / risk**: full / high\n- **Goal / state**: ship it / routed\n- **Exact paths+symbols**: none yet\n- **Context sources**: lightweight_index\n- **Ordered edits**: execution provider = native\n- **Invariants**: preserve existing contracts unless task explicitly changes them\n- **Changed files**: none\n- **Checks**: define focused checks before build\n- **Blockers**: none\n- **Exact next step**: inspect bounded context and finalize exact edit sites\n- [TODO: fill]\n- {{PROJECT}}\n",
+      "max_lines": 30
+    },
+    {
+      "name": "crlf_valid",
+      "text": "# Handoff\r\n- **Lane / risk**: full / high\r\n- **Goal / state**: ship it / routed\r\n- **Exact paths+symbols**: none yet\r\n- **Context sources**: lightweight_index\r\n- **Ordered edits**: execution provider = native\r\n- **Invariants**: preserve existing contracts unless task explicitly changes them\r\n- **Changed files**: none\r\n- **Checks**: define focused checks before build\r\n- **Blockers**: none\r\n- **Exact next step**: inspect bounded context and finalize exact edit sites\r\n",
+      "max_lines": 11
+    }
+  ],
+  "handoff_render": [
+    {
+      "name": "full_dedupe",
+      "decision": {
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "provider": "superpowers",
+      "sources": [
+        "lightweight_index",
+        "lightweight_index",
+        "durable_memory"
+      ],
+      "goal": "  fix retry  "
+    },
+    {
+      "name": "no_sources",
+      "decision": {
+        "lane": "small",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      },
+      "provider": "native",
+      "sources": [],
+      "goal": "rename"
+    }
+  ],
+  "compress": [
+    {
+      "name": "short",
+      "text": "a\nb",
+      "max_lines": 80,
+      "max_chars": 12000
+    },
+    {
+      "name": "empty",
+      "text": "",
+      "max_lines": 80,
+      "max_chars": 12000
+    },
+    {
+      "name": "line_cap",
+      "generate_lines": 100,
+      "max_lines": 80,
+      "max_chars": 12000
+    },
+    {
+      "name": "char_cap",
+      "repeat_char": "x",
+      "repeat_count": 20000,
+      "max_lines": 80,
+      "max_chars": 12000
+    },
+    {
+      "name": "crlf_and_trailing_space",
+      "text": "one  \r\ntwo\r\n",
+      "max_lines": 1,
+      "max_chars": 12000
+    },
+    {
+      "name": "unicode_char_cap",
+      "repeat_char": "ñ",
+      "repeat_count": 100,
+      "max_lines": 80,
+      "max_chars": 50
+    }
+  ],
+  "brief_format": [
+    {
+      "name": "markdown_full",
+      "format": "markdown",
+      "packet": {
+        "task": "refactor payment retry",
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.875,
+        "execution_provider": "superpowers",
+        "model_tier": "capable",
+        "execution_hint": "Use native Plan -> Build -> Review fallback.",
+        "budget": {
+          "estimated_context_tokens": 6000,
+          "max_output_tokens": 1200
+        },
+        "retrieval": {
+          "retrieval_intent": "mixed",
+          "evidence_state": "requires_exploration",
+          "workspace_state": {
+            "fingerprint": "abc123"
+          },
+          "orchestration": {
+            "superpowers_skills": [
+              "writing-plans",
+              "verification-before-completion"
+            ],
+            "crg_plan": [
+              "get_minimal_context_tool"
+            ],
+            "agent_slots": 3
+          }
+        },
+        "context": [
+          {
+            "source": "lightweight_index",
+            "text": "{\"symbol\":\"RetryPayment\"}",
+            "score": 1.0,
+            "stale": false
+          },
+          {
+            "source": "lightweight_index",
+            "text": "svc/pay.go:10: retry()",
+            "score": 1.0,
+            "stale": false
+          }
+        ],
+        "changed_files_detected": [
+          "svc/pay.go"
+        ]
+      }
+    },
+    {
+      "name": "markdown_empty",
+      "format": "markdown",
+      "packet": {
+        "task": "fix \"quoted\" ñ <tag> & co",
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.625,
+        "execution_provider": "native",
+        "model_tier": "capable",
+        "execution_hint": "Use native Plan -> Build -> Review fallback.",
+        "budget": {
+          "estimated_context_tokens": 6000,
+          "max_output_tokens": 1200
+        },
+        "retrieval": {
+          "retrieval_intent": "mixed",
+          "evidence_state": "requires_exploration",
+          "workspace_state": {
+            "fingerprint": "abc123"
+          },
+          "orchestration": {
+            "superpowers_skills": [],
+            "crg_plan": [],
+            "agent_slots": 3
+          }
+        },
+        "context": [],
+        "changed_files_detected": []
+      }
+    },
+    {
+      "name": "prompt_full",
+      "format": "prompt",
+      "packet": {
+        "task": "refactor payment retry",
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.875,
+        "execution_provider": "superpowers",
+        "model_tier": "capable",
+        "execution_hint": "Use native Plan -> Build -> Review fallback.",
+        "budget": {
+          "estimated_context_tokens": 6000,
+          "max_output_tokens": 1200
+        },
+        "retrieval": {
+          "retrieval_intent": "mixed",
+          "evidence_state": "requires_exploration",
+          "workspace_state": {
+            "fingerprint": "abc123"
+          },
+          "orchestration": {
+            "superpowers_skills": [
+              "writing-plans",
+              "verification-before-completion"
+            ],
+            "crg_plan": [
+              "get_minimal_context_tool"
+            ],
+            "agent_slots": 3
+          }
+        },
+        "context": [
+          {
+            "source": "lightweight_index",
+            "text": "{\"symbol\":\"RetryPayment\"}",
+            "score": 1.0,
+            "stale": false
+          },
+          {
+            "source": "lightweight_index",
+            "text": "svc/pay.go:10: retry()",
+            "score": 1.0,
+            "stale": false
+          }
+        ],
+        "changed_files_detected": [
+          "svc/pay.go"
+        ]
+      }
+    },
+    {
+      "name": "prompt_empty_unicode",
+      "format": "prompt",
+      "packet": {
+        "task": "fix \"quoted\" ñ <tag> & co",
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.625,
+        "execution_provider": "native",
+        "model_tier": "capable",
+        "execution_hint": "Use native Plan -> Build -> Review fallback.",
+        "budget": {
+          "estimated_context_tokens": 6000,
+          "max_output_tokens": 1200
+        },
+        "retrieval": {
+          "retrieval_intent": "mixed",
+          "evidence_state": "requires_exploration",
+          "workspace_state": {
+            "fingerprint": "abc123"
+          },
+          "orchestration": {
+            "superpowers_skills": [],
+            "crg_plan": [],
+            "agent_slots": 3
+          }
+        },
+        "context": [],
+        "changed_files_detected": []
+      }
+    }
+  ],
+  "model_tier": [
+    {
+      "name": "answer",
+      "decision": {
+        "lane": "answer",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "small",
+      "decision": {
+        "lane": "small",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "full_high",
+      "decision": {
+        "lane": "full",
+        "risk": "high",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "full_medium",
+      "decision": {
+        "lane": "full",
+        "risk": "medium",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    },
+    {
+      "name": "full_low",
+      "decision": {
+        "lane": "full",
+        "risk": "low",
+        "reasons": [],
+        "structural_context": false,
+        "confidence": 0.5
+      }
+    }
   ]
 }
