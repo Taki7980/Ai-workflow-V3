@@ -49,3 +49,10 @@ func TestBootstrapMatchesV2(t *testing.T) {
 		t.Fatalf("%v", one)
 	}
 }
+
+func TestPySumMatchesCPython(t *testing.T) {
+	v := append(slices.Repeat([]float64{0.1}, 10), 1e16, 1.0, -1e16)
+	if got := PySum(v); got != 2.0 {
+		t.Fatalf("PySum=%v want 2.0 (CPython 3.12+ sum)", got)
+	}
+}

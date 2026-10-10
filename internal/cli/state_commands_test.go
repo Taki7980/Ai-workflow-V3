@@ -124,3 +124,43 @@ func TestAuthorizeAgainstRecordedPolicy(t *testing.T) {
 		t.Fatalf("tampered journal must be refused: %d %s", code, stderr)
 	}
 }
+
+func TestLearningObserveModeEndToEnd(t *testing.T) {
+	root := setupWorkspace(t)
+	cfgPath := filepath.Join(root, "ai-workspace", "config", "control-plane.json")
+	b, _ := os.ReadFile(cfgPath)
+	var doc map[string]any
+	if err := json.Unmarshal(b, &doc); err != nil {
+		t.Fatal(err)
+	}
+	doc["context"].(map[string]any)["learning"].(map[string]any)["mode"] = "observe"
+	nb, _ := json.Marshal(doc)
+	if err := os.WriteFile(cfgPath, nb, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, out, _ := run(t, root, nil, "brief", "fix RetryPayment retry handling")
+	var p struct {
+		Retrieval struct {
+			Learning map[string]any `json:"learning"`
+		} `json:"retrieval"`
+	}
+	if err := json.Unmarshal([]byte(out), &p); err != nil {
+		t.Fatal(err)
+	}
+	l := p.Retrieval.Learning
+	if l["decision_logged"] != true || l["observation_logged"] != true || l["chosen_arm"] != "adaptive_math" {
+		t.Fatalf("observe mode must log decision + observation on the baseline arm: %v", l)
+	}
+	id := l["decision_id"].(string)
+	code, out, stderr := run(t, root, nil, "learning", "record-outcome", id, "--success", "--source", "local:test-suite",
+		"--verifier-identity", "ci", "--evidence-digest", "sha256:"+strings.Repeat("b", 64))
+	if code != 0 || !strings.Contains(out, `"recorded": true`) {
+		t.Fatalf("code=%d out=%s stderr=%s", code, out, stderr)
+	}
+	if _, out, _ := run(t, root, nil, "learning", "status"); !strings.Contains(out, `"verified_outcomes": 1`) {
+		t.Fatalf("status: %s", out)
+	}
+	if code, _, _ := run(t, root, nil, "learning", "verify-manifest", "--input", cfgPath, "--signing-key-env", "AIW_NO_SUCH_KEY_ENV"); code != 1 {
+		t.Fatal("missing signing key must fail")
+	}
+}

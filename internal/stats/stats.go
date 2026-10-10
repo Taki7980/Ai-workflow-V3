@@ -7,6 +7,7 @@ import (
 	"math"
 	"math/big"
 	"sort"
+	"strconv"
 )
 
 // PyRandom reproduces CPython's random.Random (MT19937 + init_by_array).
@@ -124,16 +125,29 @@ func Percentile(values []float64, p float64) float64 {
 	return o[lo] + (o[hi]-o[lo])*(pos-float64(lo))
 }
 
-// Round6 rounds half-to-even like Python round(x, 6) for typical values.
-func Round6(x float64) float64 { return math.RoundToEven(x*1e6) / 1e6 }
-
-// Mean is the arithmetic mean.
-func Mean(v []float64) float64 {
-	s := 0.0
-	for _, x := range v {
-		s += x
+// Round6 is Python round(x, 6): the exact binary value correctly rounded to
+// six decimals (strconv rounds the exact value, unlike x*1e6).
+func Round6(x float64) float64 {
+	if math.IsNaN(x) || math.IsInf(x, 0) {
+		return x
 	}
-	return s / float64(len(v))
+	f, _ := strconv.ParseFloat(strconv.FormatFloat(x, 'f', 6, 64), 64)
+	return f
+}
+
+// Mean is Python statistics.mean: the exact rational sum divided by n,
+// rounded once to the nearest float64.
+func Mean(v []float64) float64 {
+	if len(v) == 0 {
+		return math.NaN()
+	}
+	sum := new(big.Rat)
+	r := new(big.Rat)
+	for _, x := range v {
+		sum.Add(sum, r.SetFloat64(x))
+	}
+	f, _ := sum.Quo(sum, new(big.Rat).SetInt64(int64(len(v)))).Float64()
+	return f
 }
 
 func finite(values []float64) []float64 {
@@ -209,4 +223,23 @@ func PairedEffect(deltas []float64, confidence float64, resamples int, seed int6
 		out["cohen_dz"] = Round6(Mean(c) / sd)
 	}
 	return out
+}
+
+// PySum is CPython >= 3.12 sum() over floats: Neumaier compensated summation
+// (needed for bit-identical results with V2).
+func PySum(xs []float64) float64 {
+	f, c := 0.0, 0.0
+	for _, x := range xs {
+		t := f + x
+		if math.Abs(f) >= math.Abs(x) {
+			c += (f - t) + x
+		} else {
+			c += (x - t) + f
+		}
+		f = t
+	}
+	if c != 0 && !math.IsInf(c, 0) && !math.IsNaN(c) {
+		f += c
+	}
+	return f
 }
