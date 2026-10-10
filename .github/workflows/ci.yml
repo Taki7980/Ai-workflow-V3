@@ -37,6 +37,36 @@ jobs:
       - run: go build ./cmd/compat-harness
       - run: go build ./cmd/retrieval-bench
 
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Enable bubblewrap sandbox backend
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq bubblewrap
+          # Ubuntu 24.04 restricts unprivileged user namespaces through AppArmor.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+      - name: Sandbox integration must run (not skip)
+        shell: bash
+        run: |
+          out="$(go test ./internal/provider -run TestBubblewrapIntegration -count=1 -v)"
+          echo "$out"
+          grep -q -- "--- PASS: TestBubblewrapIntegration" <<<"$out"
+      - name: Process-tree, env-leak and path-confinement tests
+        run: go test ./internal/procx ./internal/provider ./internal/workspace -count=1 -race
+      - name: Fuzz hostile inputs
+        shell: bash
+        run: |
+          set -e
+          go test ./internal/provider -run '^$' -fuzz '^FuzzParseRecords$' -fuzztime 20s
+          go test ./internal/journal -run '^$' -fuzz '^FuzzVerify$' -fuzztime 20s
+          go test ./internal/workspace -run '^$' -fuzz '^FuzzRemoteIdentity$' -fuzztime 20s
+          go test ./internal/verify -run '^$' -fuzz '^FuzzSplitCommand$' -fuzztime 20s
+
   installer:
     strategy:
       matrix:

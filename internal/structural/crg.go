@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
@@ -351,18 +351,6 @@ func rewritePaths(root string, payload map[string]any) {
 	}
 }
 
-type capWriter struct {
-	buf bytes.Buffer
-	max int
-}
-
-func (w *capWriter) Write(p []byte) (int, error) {
-	if w.buf.Len()+len(p) > w.max {
-		return 0, errors.New("output cap exceeded")
-	}
-	return w.buf.Write(p)
-}
-
 type crgRun struct {
 	ctx             context.Context
 	exe, root, data string
@@ -385,19 +373,14 @@ func (r *crgRun) raw(args ...string) map[string]any {
 		return nil
 	}
 	r.calls++
-	ctx, cancel := context.WithTimeout(r.ctx, crgTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, r.exe, append(args, "--repo", r.root)...)
-	cmd.Dir = r.root
-	cmd.Env = append(os.Environ(), "CRG_DATA_DIR="+r.data, "CRG_REPO_ROOT="+r.root)
-	cmd.WaitDelay = time.Second
-	out := &capWriter{max: crgMaxOutput}
-	cmd.Stdout = out
-	if cmd.Run() != nil || strings.TrimSpace(out.buf.String()) == "" {
+	// V2 passes the full environment to CRG (a user-installed Python tool).
+	out, err := procx.Output(r.ctx, procx.Cmd{Argv: append([]string{r.exe}, append(args, "--repo", r.root)...), Dir: r.root,
+		Env: append(procx.InheritEnv(), "CRG_DATA_DIR="+r.data, "CRG_REPO_ROOT="+r.root), Timeout: crgTimeout, MaxStdout: crgMaxOutput})
+	if err != nil || strings.TrimSpace(string(out)) == "" {
 		return nil
 	}
 	payload := map[string]any{}
-	if json.Unmarshal(out.buf.Bytes(), &payload) != nil {
+	if json.Unmarshal(out, &payload) != nil {
 		return nil
 	}
 	return payload
