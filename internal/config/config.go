@@ -7,8 +7,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -75,8 +77,79 @@ type Context struct {
 	ExternalRetrievers  []json.RawMessage  `json:"external_retrievers"`
 	// Experiments are benchmark-only algorithm switches (V2 context.experiments).
 	Experiments *Experiments `json:"experiments,omitempty"`
+	Learning    Learning     `json:"learning"`
 	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
 	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+// LearningKillSwitchEnv forces the learning layer back to the baseline.
+const LearningKillSwitchEnv = "AI_WORKFLOW_LEARNING_KILL_SWITCH"
+
+// Learning is context.learning (V2 Stage 5 safe retrieval learning).
+type Learning struct {
+	Mode                   string   `json:"mode"`
+	KillSwitch             bool     `json:"kill_switch"`
+	ExplorationProbability *float64 `json:"exploration_probability,omitempty"`
+	AllowedRisks           []string `json:"allowed_risks,omitempty"`
+	EligibleArms           []string `json:"eligible_arms,omitempty"`
+}
+
+// ModeOf normalizes the configured mode (unknown -> off).
+func (c Learning) ModeOf() string {
+	switch m := strings.ToLower(strings.TrimSpace(c.Mode)); m {
+	case "observe", "explore":
+		return m
+	}
+	return "off"
+}
+
+// KillSwitchOn reports the env or config emergency switch.
+func (c Learning) KillSwitchOn() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(LearningKillSwitchEnv))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return c.KillSwitch
+}
+
+// Epsilon is the bounded exploration probability (default 0.05).
+func (c Learning) Epsilon() float64 {
+	if c.ExplorationProbability == nil || math.IsNaN(*c.ExplorationProbability) || math.IsInf(*c.ExplorationProbability, 0) {
+		return .05
+	}
+	return math.Min(1, math.Max(0, *c.ExplorationProbability))
+}
+
+// Arms filters eligible arms to the safe set, always including the baseline.
+func (c Learning) Arms(safe []string, baseline string) []string {
+	raw := c.EligibleArms
+	if raw == nil {
+		raw = safe
+	}
+	out := []string{}
+	for _, a := range raw {
+		if a = strings.TrimSpace(a); slices.Contains(safe, a) && !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	if !slices.Contains(out, baseline) {
+		out = append([]string{baseline}, out...)
+	}
+	return out
+}
+
+// LowAllowed reports whether low-risk exploration is permitted (only low ever is).
+func (c Learning) LowAllowed() bool {
+	raw := c.AllowedRisks
+	if raw == nil {
+		return true
+	}
+	for _, r := range raw {
+		if strings.ToLower(strings.TrimSpace(r)) == "low" {
+			return true
+		}
+	}
+	return false
 }
 
 // Experiments selects alternative ranking/selection algorithms for ablations.

@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/stats"
 )
 
 func estimateTokens(s string) int { return (len(s) + 3) / 4 }
@@ -60,10 +61,11 @@ func PatternMetrics(items []model.ContextItem, patterns []string, k int) map[str
 			}
 		}
 	}
-	ideal := 0.0
+	idealTerms := []float64{}
 	for r := 1; r <= len(ps); r++ {
-		ideal += dcgTerm(r)
+		idealTerms = append(idealTerms, dcgTerm(r))
 	}
+	ideal := stats.PySum(idealTerms)
 	mrr := 0.0
 	if first > 0 {
 		mrr = 1 / float64(first)
@@ -109,20 +111,21 @@ func FileMetrics(items []model.ContextItem, goldFiles []string, k int) map[strin
 	}
 	cutoff := max(1, k)
 	files := rankedFiles(items, cutoff)
-	matched, first, dcg := []string{}, 0, 0.0
+	matched, first, dcgTerms := []string{}, 0, []float64{}
 	for rank, f := range files {
 		if slices.Contains(gold, f) {
 			matched = append(matched, f)
-			dcg += dcgTerm(rank + 1)
+			dcgTerms = append(dcgTerms, dcgTerm(rank+1))
 			if first == 0 {
 				first = rank + 1
 			}
 		}
 	}
-	ideal := 0.0
+	idealTerms := []float64{}
 	for r := 1; r <= min(len(gold), cutoff); r++ {
-		ideal += dcgTerm(r)
+		idealTerms = append(idealTerms, dcgTerm(r))
 	}
+	dcg, ideal := stats.PySum(dcgTerms), stats.PySum(idealTerms)
 	precision := float64(len(matched)) / float64(cutoff)
 	recall := float64(len(matched)) / float64(len(gold))
 	f1 := 0.0
@@ -212,7 +215,7 @@ func RoleMetrics(items []model.ContextItem, relevance []any, distractorFiles []s
 	files := rankedFiles(items, cutoff)
 	edit, support := sortedKeys(roles, "edit_target"), sortedKeys(roles, "supporting_context")
 	var mEdit, mSupport, mDistract []string
-	firstEdit, dcg, weighted := 0, 0.0, 0
+	firstEdit, dcgTerms, weighted := 0, []float64{}, 0
 	for rank, f := range files {
 		switch roles[f] {
 		case "edit_target":
@@ -224,7 +227,7 @@ func RoleMetrics(items []model.ContextItem, relevance []any, distractorFiles []s
 			mSupport = append(mSupport, f)
 		}
 		if g := roleGains[roles[f]]; g > 0 {
-			dcg += (math.Pow(2, float64(g)) - 1) * dcgTerm(rank+1)
+			dcgTerms = append(dcgTerms, (math.Pow(2, float64(g))-1)/math.Log2(float64(rank+1)+1))
 			weighted += g
 		}
 		if distractors[f] {
@@ -238,10 +241,11 @@ func RoleMetrics(items []model.ContextItem, relevance []any, distractorFiles []s
 		total += roleGains[r]
 	}
 	sort.Sort(sort.Reverse(sort.IntSlice(gains)))
-	ideal := 0.0
+	idealTerms := []float64{}
 	for i, g := range gains[:min(len(gains), cutoff)] {
-		ideal += (math.Pow(2, float64(g)) - 1) * dcgTerm(i+1)
+		idealTerms = append(idealTerms, (math.Pow(2, float64(g))-1)/math.Log2(float64(i+1)+1))
 	}
+	dcg, ideal := stats.PySum(dcgTerms), stats.PySum(idealTerms)
 	out := map[string]any{"k": cutoff, "edit_target_files": edit, "supporting_context_files": support,
 		"known_distractor_files": sortedSet(distractors), "retrieved_files": files, "matched_edit_targets": orEmptyList(mEdit),
 		"matched_supporting_context": orEmptyList(mSupport), "matched_known_distractors": orEmptyList(mDistract)}
