@@ -75,9 +75,14 @@ ai-workflow scip sync|status [--repo REL]... [--language go|python|typescript|ja
 ai-workflow repos list|refresh
 ai-workflow repos include|exclude <path|id|remote|name>   # refresh keeps these decisions
 ai-workflow index [--mode auto|incremental|full]
+ai-workflow stats [--limit 200] [--recommend] [--minimum-runs 20]
+ai-workflow replay RUN_ID [--strict]     # verified decision history; never re-executes anything
+ai-workflow run inspect|verify RUN_ID
 ai-workflow doctor --strict
 ai-workflow version
 ```
+
+Mutation briefs (and any `brief`/`context` with `--trace`) write a privacy-preserving trace under `ai-workspace/generated/traces/` and an immutable hash-chained run journal under `ai-workspace/generated/run-journal/`; the run ID is in `retrieval.run_id`. Traces never contain task text (set `AI_WORKFLOW_TELEMETRY_HMAC_KEY` to add a keyed task fingerprint). `context.telemetry.mode` is `off`, `mutations` (default) or `all`; `retention_days`, `max_trace_files` and `redact_patterns` bound and scrub traces. Optional OTLP export is configured only through `AI_WORKFLOW_OTLP_ENDPOINT` plus an explicit `AI_WORKFLOW_OTLP_ALLOWED_HOSTS` allowlist (HTTPS only, no redirects, no loopback/link-local targets).
 
 Migrating V2 memory: run `ai-workflow memory export memory.jsonl` with V2, then `ai-workflow memory import memory.jsonl` with V3.
 

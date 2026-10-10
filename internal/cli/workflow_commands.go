@@ -51,6 +51,7 @@ func briefCmd(root string, args []string, out, errOut io.Writer) int {
 	symbol := fs.String("symbol", "", "exact symbol anchor")
 	endpoint := fs.String("endpoint", "", "endpoint anchor")
 	writeHandoff := fs.Bool("write-handoff", false, "write ai-workspace/handoff/HANDOFF.md for non-answer lanes")
+	trace := fs.Bool("trace", false, "write a trace and run journal even for Answer lanes")
 	var changed stringList
 	fs.Var(&changed, "changed-file", "changed file (repeatable); default: detected from git")
 	pos, err := parseInterspersed(fs, args)
@@ -67,7 +68,7 @@ func briefCmd(root string, args []string, out, errOut io.Writer) int {
 		fmt.Fprintf(errOut, "invalid format %q (want json, markdown, or prompt)\n", *format)
 		return 2
 	}
-	p, err := brief.Build(context.Background(), root, pos[0], brief.Options{Symbol: *symbol, Endpoint: *endpoint, ChangedFiles: changed, WriteHandoff: *writeHandoff})
+	p, err := brief.Build(context.Background(), root, pos[0], brief.Options{Symbol: *symbol, Endpoint: *endpoint, ChangedFiles: changed, WriteHandoff: *writeHandoff, Trace: *trace})
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
@@ -85,6 +86,7 @@ func briefCmd(root string, args []string, out, errOut io.Writer) int {
 // without persistence, emitted as lane/risk/retrieval/items.
 func contextCmd(root string, args []string, out, errOut io.Writer) int {
 	fs := newFlags("context", errOut)
+	trace := fs.Bool("trace", false, "write a trace and run journal")
 	symbol := fs.String("symbol", "", "exact symbol anchor")
 	endpoint := fs.String("endpoint", "", "endpoint anchor")
 	var changed stringList
@@ -97,7 +99,7 @@ func contextCmd(root string, args []string, out, errOut io.Writer) int {
 		fmt.Fprintln(errOut, "context requires one task argument")
 		return 2
 	}
-	p, err := brief.Build(context.Background(), root, pos[0], brief.Options{Symbol: *symbol, Endpoint: *endpoint, ChangedFiles: changed, ReadOnly: true})
+	p, err := brief.Build(context.Background(), root, pos[0], brief.Options{Symbol: *symbol, Endpoint: *endpoint, ChangedFiles: changed, ReadOnly: true, Trace: *trace})
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
