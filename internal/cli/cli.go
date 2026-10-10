@@ -88,6 +88,8 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return benchmarkCmd(root, args[1:], out, errOut)
 	case "benchmark-corpus":
 		return benchmarkCorpusCmd(root, args[1:], out, errOut)
+	case "benchmark-ablate", "benchmark-algorithms", "benchmark-intervene", "benchmark-statistics", "benchmark-calibrate", "benchmark-policy-advisor":
+		return researchCmd(args[0], root, args[1:], out, errOut)
 	case "authorize":
 		return authorizeCmd(root, args[1:], in, out, errOut)
 	case "graph", "scip":
@@ -144,6 +146,9 @@ Commands:
   run inspect|verify RUN_ID  print a run journal / check it against the current workspace
   benchmark --tasks FILE     score routing + context on gold-labelled cases (--research-protocol, --require-frozen-snapshot)
   benchmark-corpus validate|integrity|snapshot   corpus-v2 checks (--input, --require-ready, --fail-on-signals)
+  benchmark-ablate|benchmark-algorithms --tasks F [--profile P]   compare provider families / ranking algorithms
+  benchmark-intervene --tasks F [--mode M] [--runner-command EXE]  seed interventions (optionally run an agent runner)
+  benchmark-statistics|benchmark-calibrate|benchmark-policy-advisor --input REPORT   advisory statistics
   authorize RUN_ID           gate a model-proposed action (JSON on stdin) against the run's capability policy
   repos list|refresh|include|exclude  manage the repository registry
   index                      rebuild indexes (--mode auto|incremental|full, --incremental)

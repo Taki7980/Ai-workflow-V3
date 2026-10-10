@@ -77,14 +77,14 @@ func TestRoleAndTrajectory(t *testing.T) {
 
 func TestValidateCases(t *testing.T) {
 	bad := map[string]string{
-		`[{"task":""}]`: "non-empty task",
-		`[{"task":"x","retrieval_k":0}]`: "retrieval_k must be >= 1",
-		`[{"task":"x","task_type":"code2test"}]`: "requires gold_files",
-		`[{"task":"x","control_type":"wrong_repo","gold_files":["a.go"]}]`: "selective controls",
-		`[{"task":"x","gold_files":["a.go"],"distractor_files":["a.go"]}]`: "disjoint",
-		`[{"task":"x","repository_path":"../up"}]`: "inside the benchmark root",
-		`[{"task":"x","base_commit":"abc"}]`: "full 40-64",
-		`[{"task":"x","gold_spans":[{"path":"a","start_line":5,"end_line":2}]}]`: "start_line <= end_line",
+		`[{"task":""}]`:                                                                                "non-empty task",
+		`[{"task":"x","retrieval_k":0}]`:                                                               "retrieval_k must be >= 1",
+		`[{"task":"x","task_type":"code2test"}]`:                                                       "requires gold_files",
+		`[{"task":"x","control_type":"wrong_repo","gold_files":["a.go"]}]`:                             "selective controls",
+		`[{"task":"x","gold_files":["a.go"],"distractor_files":["a.go"]}]`:                             "disjoint",
+		`[{"task":"x","repository_path":"../up"}]`:                                                     "inside the benchmark root",
+		`[{"task":"x","base_commit":"abc"}]`:                                                           "full 40-64",
+		`[{"task":"x","gold_spans":[{"path":"a","start_line":5,"end_line":2}]}]`:                       "start_line <= end_line",
 		`[{"task":"x","gold_files":["a.go"],"file_relevance":[{"path":"b.go","role":"edit_target"}]}]`: "label every gold_file",
 	}
 	for in, want := range bad {
@@ -105,7 +105,7 @@ func corpus(id, split, repo, task string) Corpus {
 		"source": map[string]any{"name": "n", "url": "u", "license": "MIT"},
 		"cases": []any{map[string]any{"task": task, "task_type": "code2test", "case_id": id + "-1", "repository_id": repo, "language": "go",
 			"label_source": "human", "labeler_count": json.Number("1"), "schema_version": json.Number("2"), "gold_files": []any{"a.go"},
-			"gold_spans": []any{map[string]any{"path": "a.go", "start_line": json.Number("1"), "end_line": json.Number("2")}},
+			"gold_spans":  []any{map[string]any{"path": "a.go", "start_line": json.Number("1"), "end_line": json.Number("2")}},
 			"base_commit": strings.Repeat("a", 40), "content_manifest_sha256": strings.Repeat("b", 64), "source_event_time": "2026-01-02T03:04:05Z"}}}
 }
 

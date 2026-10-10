@@ -73,8 +73,37 @@ type Context struct {
 	Telemetry           Telemetry          `json:"telemetry"`
 	Semantic            Semantic           `json:"semantic"`
 	ExternalRetrievers  []json.RawMessage  `json:"external_retrievers"`
+	// Experiments are benchmark-only algorithm switches (V2 context.experiments).
+	Experiments *Experiments `json:"experiments,omitempty"`
 	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
 	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+// Experiments selects alternative ranking/selection algorithms for ablations.
+type Experiments struct {
+	HybridRanker                string   `json:"hybrid_ranker,omitempty"` // adaptive | source | bm25 | rrf | rrf_mmr
+	RRFK                        int      `json:"rrf_k,omitempty"`
+	MMRLambda                   *float64 `json:"mmr_lambda,omitempty"`
+	DisableEarlySufficiencyGate bool     `json:"disable_early_sufficiency_gate,omitempty"`
+}
+
+// Policy returns the normalized algorithm policy (V2 _algorithm_policy).
+func (e *Experiments) Policy() (ranker string, rrfK int, lambda float64, noEarlyStop bool) {
+	ranker, rrfK, lambda = "adaptive", 60, .75
+	if e == nil {
+		return ranker, rrfK, lambda, false
+	}
+	switch r := strings.ToLower(strings.TrimSpace(e.HybridRanker)); r {
+	case "source", "bm25", "rrf", "rrf_mmr":
+		ranker = r
+	}
+	if e.RRFK > 0 {
+		rrfK = e.RRFK
+	}
+	if e.MMRLambda != nil {
+		lambda = min(1, max(0, *e.MMRLambda))
+	}
+	return ranker, rrfK, lambda, e.DisableEarlySufficiencyGate
 }
 
 // BuiltinSemanticProvider is the dependency-free local hybrid retriever.

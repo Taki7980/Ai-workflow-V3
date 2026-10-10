@@ -148,6 +148,8 @@ func groupSummary(rows []map[string]any) map[string]any {
 type Options struct {
 	Research      bool
 	RequireFrozen bool
+	// Config overrides the workspace configuration (ablation profiles).
+	Config *config.Config
 }
 
 // Run executes every case through the real brief pipeline (no persistence,
@@ -159,6 +161,9 @@ func Run(ctx context.Context, root string, cases []Case, o Options) (map[string]
 	cfg, err := config.Load(root)
 	if err != nil {
 		return nil, err
+	}
+	if o.Config != nil {
+		cfg = *o.Config
 	}
 	reg, err := workspace.Load(root)
 	if err != nil {
@@ -180,7 +185,7 @@ func Run(ctx context.Context, root string, cases []Case, o Options) (map[string]
 		changed, _ := c.Strings("changed_files")
 		start := time.Now()
 		p, err := brief.Build(ctx, root, task, brief.Options{Symbol: c.Str("symbol"), Endpoint: c.Str("endpoint"), ChangedFiles: changed,
-			ReadOnly: true, OnlyRepository: c.RepositoryPath(), BudgetTokens: budgetOverride})
+			ReadOnly: true, OnlyRepository: c.RepositoryPath(), BudgetTokens: budgetOverride, Config: &cfg})
 		if err != nil {
 			return nil, fmt.Errorf("case %q: %w", task, err)
 		}
@@ -208,7 +213,7 @@ func Run(ctx context.Context, root string, cases []Case, o Options) (map[string]
 			"control_type": control, "repository_path": c.RepositoryPath(), "repository_id": c["repository_id"], "case_id": c["case_id"],
 			"language": c["language"], "label_source": c["label_source"], "snapshot": snapshot, "lane": p.Lane, "risk": p.Risk,
 			"routing_confidence": p.Confidence, "execution_provider": p.ExecutionProvider, "model_tier": p.ModelTier, "providers": status,
-			"retrieval_intent": r.RetrievalIntent, "algorithm_policy": map[string]any{"profile": "adaptive_math"},
+			"retrieval_intent": r.RetrievalIntent, "algorithm_policy": algorithmPolicy(cfg),
 			"retrieval_sufficient": r.Sufficiency.Sufficient, "retrieval_sufficiency_score": r.Sufficiency.Score,
 			"evidence_state": r.EvidenceState, "selector_mode": "mmr", "workspace_fingerprint": r.WorkspaceState.Fingerprint,
 			"orchestration_complexity_score": r.Orchestration.ComplexityScore, "fallbacks": r.Fallbacks, "context_sources": sources,
@@ -266,6 +271,12 @@ func Run(ctx context.Context, root string, cases []Case, o Options) (map[string]
 		rows = append(rows, row)
 	}
 	return report(rows, status, o.Research), nil
+}
+
+func algorithmPolicy(cfg config.Config) map[string]any {
+	ranker, rrfK, lambda, noEarly := cfg.Context.Experiments.Policy()
+	return map[string]any{"hybrid_ranker": ranker, "rrf_k": rrfK, "mmr_lambda": lambda, "disable_early_sufficiency_gate": noEarly,
+		"selector_enabled": cfg.Context.Selector.Enabled, "adaptive_budget_enabled": cfg.Context.AdaptiveBudget.Enabled}
 }
 
 func containsStr(xs []string, s string) bool {

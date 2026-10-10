@@ -67,6 +67,10 @@ func (c Case) Int(k string, def int) (int, error) {
 		return i, nil
 	case float64:
 		return int(v), nil
+	case int:
+		return v, nil
+	case int64:
+		return int(v), nil
 	case string:
 		return strconv.Atoi(strings.TrimSpace(v))
 	case bool:

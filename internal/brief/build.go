@@ -36,6 +36,8 @@ type Options struct {
 	OnlyRepository string
 	// BudgetTokens overrides the lane's hard context budget when > 0.
 	BudgetTokens int
+	// Config overrides the workspace configuration (benchmark ablations).
+	Config *config.Config
 }
 
 // loadIndexes returns the included repositories, their loadable indexes,
@@ -118,6 +120,9 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	if err != nil {
 		return Packet{}, err
 	}
+	if opt.Config != nil {
+		cfg = *opt.Config
+	}
 	reg, err := workspace.Load(root)
 	if err != nil {
 		return Packet{}, err
@@ -186,6 +191,9 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	// V2 early sufficiency gate: specialist providers run only when the base
 	// evidence (index, targeted source, memory) is insufficient.
 	base := EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, cfg.Context.Sufficiency.Threshold)
+	if _, _, _, noEarlyStop := cfg.Context.Experiments.Policy(); noEarlyStop {
+		base.Sufficient = false
+	}
 	switch {
 	case plan.UseSemantic && base.Sufficient:
 		skipped["semantic"] = "base evidence sufficient"
@@ -216,7 +224,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	limit := adaptiveTokens(budget.EstimatedTokens, pre.Score, cfg.Context.AdaptiveBudget)
 	mandatory := plan.UseStructural && cfg.Context.Selector.MandatoryStructuralEvidence
 	t = time.Now()
-	selected := capBySource(selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, plan.StructuralPatterns, mandatory),
+	selected := capBySource(rankAndSelect(g, query, limit, cfg, plan.StructuralPatterns, mandatory),
 		budget.EstimatedTokens, cfg.Context.SourceShares, cfg.Context.MaxResultsPerSource, plan.StructuralPatterns, mandatory)
 	stage("selection", t)
 
@@ -380,6 +388,94 @@ func selectItems(g *gathered, limit, maxCandidates int, patterns []string, manda
 			used += c.EstimatedTokens
 			out = append(out, c.Value)
 		}
+	}
+	return out
+}
+
+// rankAndSelect applies the configured algorithm policy. The default
+// ("adaptive") is V3's deterministic MMR selector; the other rankers port
+// V2 _hybrid_rank for benchmark ablations and fill the budget greedily.
+func rankAndSelect(g *gathered, query string, limit int, cfg config.Config, patterns []string, mandatory bool) []model.ContextItem {
+	ranker, rrfK, lambda, _ := cfg.Context.Experiments.Policy()
+	if ranker == "adaptive" && cfg.Context.Selector.Enabled {
+		return selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, patterns, mandatory)
+	}
+	unique, seen := []model.ContextItem{}, map[[32]byte]bool{}
+	for _, it := range g.items {
+		if k := it.DedupeKey(); !seen[k] {
+			seen[k] = true
+			unique = append(unique, it)
+		}
+	}
+	source := append([]model.ContextItem{}, unique...)
+	sort.SliceStable(source, func(i, j int) bool { return source[i].Score > source[j].Score })
+	keyOf := func(it model.ContextItem) string { k := it.DedupeKey(); return string(k[:]) }
+	texts := make([]string, len(unique))
+	for i, it := range unique {
+		texts[i] = it.Text
+	}
+	lexical := []model.ContextItem{}
+	inLex := map[string]bool{}
+	for _, s := range retrieval.NewBM25(texts, unique).Rank(query) {
+		lexical = append(lexical, s.Value)
+		inLex[keyOf(s.Value)] = true
+	}
+	for _, it := range source {
+		if !inLex[keyOf(it)] {
+			lexical = append(lexical, it)
+		}
+	}
+	greedy := func(order []model.ContextItem) []model.ContextItem {
+		out, used := []model.ContextItem{}, 0
+		for _, it := range order {
+			if c := estimateTokens(it.Text); used+c <= limit {
+				used += c
+				out = append(out, it)
+			}
+		}
+		return out
+	}
+	switch {
+	case ranker == "adaptive" || ranker == "source": // adaptive here means selector_off
+		return greedy(source)
+	case ranker == "bm25":
+		return greedy(lexical)
+	}
+	specialist := []model.ContextItem{}
+	for _, it := range source {
+		switch it.Source {
+		case "lightweight_index", "targeted_source", "durable_memory":
+		default:
+			specialist = append(specialist, it)
+		}
+	}
+	toRanked := func(xs []model.ContextItem) []retrieval.Ranked[model.ContextItem] {
+		out := make([]retrieval.Ranked[model.ContextItem], len(xs))
+		for i, it := range xs {
+			out[i] = retrieval.Ranked[model.ContextItem]{Value: it, Key: keyOf(it)}
+		}
+		return out
+	}
+	fused := retrieval.RRF([][]retrieval.Ranked[model.ContextItem]{toRanked(source), toRanked(lexical), toRanked(specialist)}, float64(rrfK))
+	order := make([]model.ContextItem, len(fused))
+	for i, f := range fused {
+		order[i] = f.Value
+	}
+	if ranker == "rrf" || len(order) <= 1 || !cfg.Context.Selector.Enabled {
+		return greedy(order)
+	}
+	cands := make([]retrieval.Candidate[model.ContextItem], len(fused))
+	for i, f := range fused {
+		cands[i] = retrieval.Candidate[model.ContextItem]{Key: keyOf(f.Value), Text: f.Value.Text, Value: f.Value, Relevance: f.Score,
+			EstimatedTokens: estimateTokens(f.Value.Text), Required: mandatory && requiredStructural(f.Value, patterns)}
+	}
+	sel, err := retrieval.SelectMMR(cands, retrieval.SelectorOptions{MaxTokens: limit, MaxCandidates: max(1, len(cands)), Lambda: lambda, MandatoryRequired: mandatory})
+	if err != nil {
+		return greedy(order)
+	}
+	out := make([]model.ContextItem, 0, len(sel.Items))
+	for _, c := range sel.Items {
+		out = append(out, c.Value)
 	}
 	return out
 }
