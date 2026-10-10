@@ -16,7 +16,8 @@ This repository contains the first native V3 migration slice.
 - nested repository exclusion during parent-repository indexing;
 - BM25 and reciprocal-rank-fusion primitives;
 - bounded external provider process protocol foundation;
-- `setup`, `route`, `repos list`, `repos refresh`, `index`, `context`, `doctor`, `version`;
+- `setup`, `bootstrap`, `init`, `route`, `repos list|refresh|include|exclude`, `index`, `context`, `search`, `doctor`, `version`;
+- release pipeline (six static targets, `SHA256SUMS`, build provenance) and checksum-verifying `install.sh` / `install.ps1`;
 - structural adapters: code-review-graph queries and SCIP index items with freshness manifests, evidence confidence tiers (candidate/corroborated/verified) and `graph`/`scip` sync and status commands;
 - Linux/macOS/Windows CI matrix for Go 1.26 and Go 1.27;
 - CodeQL workflow.

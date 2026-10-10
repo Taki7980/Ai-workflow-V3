@@ -20,6 +20,28 @@ V2 proved the control-plane model. V3 changes the runtime and internal architect
 - **Hardened external-provider execution**: no shell, bounded output, timeouts, constrained environment.
 - **Compatibility-first migration**: V2 inputs and behavior become executable fixtures, not assumptions.
 
+## Install
+
+Linux / macOS:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/Taki7980/Ai-workflow-V3/main/install.sh | sh
+```
+
+Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/Taki7980/Ai-workflow-V3/main/install.ps1 | iex
+```
+
+The installers download the release binary for your OS/architecture, verify its SHA-256 against the release `SHA256SUMS`, and refuse to install on mismatch. Pin a version with `AI_WORKFLOW_VERSION=X.Y.Z`; choose a directory with `AI_WORKFLOW_INSTALL_DIR`. Every release binary carries a GitHub build-provenance attestation:
+
+```sh
+gh attestation verify "$(command -v ai-workflow)" --repo Taki7980/Ai-workflow-V3
+```
+
+With a Go toolchain (1.26+): `go install github.com/Taki7980/ai-workflow-v3/cmd/ai-workflow@latest`.
+
 ## Quick start
 
 ```bash
@@ -37,19 +59,22 @@ ai-workflow memory add --type verified-fix --keywords "payment retry" \
 ## Commands
 
 ```bash
-ai-workflow setup
+ai-workflow setup [--project-name N] [--json] [--create] [--no-index|--full-index] [--no-crg-sync]
+ai-workflow bootstrap --project-name N    # strict: refuses existing control-plane files
+ai-workflow init --project-name N
 ai-workflow brief "fix payment validation" [--format json|markdown|prompt] [--write-handoff] [--changed-file F]...
 ai-workflow route "fix payment validation"
-ai-workflow context "DuplicateCharge"
-ai-workflow handoff                       # validate ai-workspace/handoff/HANDOFF.md
+ai-workflow context "fix DuplicateCharge" [--symbol S] [--endpoint E] [--changed-file F]...   # evidence packet, writes no state
+ai-workflow search "DuplicateCharge"      # raw indexed-symbol hits
+ai-workflow handoff [validate]            # validate ai-workspace/handoff/HANDOFF.md
 ai-workflow verify --check "go test ./..." [--strict]
 ai-workflow compress [--file F] [--max-lines 80] [--max-chars 12000] [--prefer-rtk] < noisy.log
 ai-workflow memory add|search|list|prune|export|import
 ai-workflow graph sync|status [--repo REL]... [--timeout 180]
 ai-workflow scip sync|status [--repo REL]... [--language go|python|typescript|javascript|java]
-ai-workflow repos list
-ai-workflow repos refresh
-ai-workflow index
+ai-workflow repos list|refresh
+ai-workflow repos include|exclude <path|id|remote|name>   # refresh keeps these decisions
+ai-workflow index [--mode auto|incremental|full]
 ai-workflow doctor --strict
 ai-workflow version
 ```
@@ -77,6 +102,8 @@ V3 targets the supported Go toolchain line beginning with Go 1.26. The CI releas
 go test ./...
 go build -o bin/ai-workflow ./cmd/ai-workflow
 ```
+
+Releases are cut by pushing a `vX.Y.Z` tag: `.github/workflows/release.yml` tests, cross-compiles static binaries for linux/darwin/windows × amd64/arm64, writes `SHA256SUMS`, attests build provenance and publishes the GitHub release.
 
 ## Architecture
 
