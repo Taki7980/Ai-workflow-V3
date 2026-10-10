@@ -2,6 +2,8 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -67,8 +69,17 @@ type Context struct {
 	Selector            Selector           `json:"selector"`
 	SelectiveRetrieval  SelectiveRetrieval `json:"selective_retrieval"`
 	SCIP                SCIP               `json:"scip"`
+	Telemetry           Telemetry          `json:"telemetry"`
 	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
 	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+// Telemetry controls local retrieval traces (V2 context.telemetry).
+type Telemetry struct {
+	Mode           string   `json:"mode"` // off | mutations | all
+	RetentionDays  *int     `json:"retention_days,omitempty"`
+	MaxTraceFiles  int      `json:"max_trace_files,omitempty"`
+	RedactPatterns []string `json:"redact_patterns,omitempty"`
 }
 
 // SCIP gates SCIP index use: auto, on or off.
@@ -232,10 +243,31 @@ func (c Config) Validate() error {
 	if c.Context.Selector.MaxSelectorCandidates <= 0 {
 		return fmt.Errorf("context.selector.max_selector_candidates must be positive")
 	}
+	switch c.Context.Telemetry.Mode {
+	case "", "off", "mutations", "all":
+	default:
+		return fmt.Errorf("context.telemetry.mode must be off, mutations, or all")
+	}
 	if c.Budgets.Answer.EstimatedTokens <= 0 || c.Budgets.Small.EstimatedTokens <= 0 || c.Budgets.Full.EstimatedTokens <= 0 {
 		return fmt.Errorf("budgets must be positive")
 	}
 	return nil
+}
+
+// Digest is the SHA-256 of the raw config document in canonical JSON, used to
+// bind traces and run journals to the exact configuration (V2 config_digest).
+func Digest(root string) string {
+	var doc any = DefaultDocument()
+	if b, err := os.ReadFile(Path(root)); err == nil {
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.UseNumber()
+		if dec.Decode(&doc) != nil {
+			doc = map[string]any{"invalid": true}
+		}
+	}
+	b, _ := json.Marshal(doc) // encoding/json sorts map keys
+	sum := sha256.Sum256(b)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // DefaultDocument returns the V2-compatible configuration document used when

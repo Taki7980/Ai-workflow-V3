@@ -48,6 +48,9 @@ type RetrievalDiagnostics struct {
 	ProviderErrors        map[string]string `json:"provider_errors"`
 	Fallbacks             []string          `json:"fallbacks"`
 	Orchestration         Orchestration     `json:"orchestration"`
+	RunID                 string            `json:"run_id,omitempty"`
+	Trace                 string            `json:"trace,omitempty"`
+	Journal               string            `json:"journal,omitempty"`
 }
 
 // Packet is the brief emitted to agents (spec §4.8).

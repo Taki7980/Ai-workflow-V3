@@ -72,6 +72,12 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return compressCmd(args[1:], in, out, errOut)
 	case "memory":
 		return memoryCmd(root, args[1:], out, errOut)
+	case "stats":
+		return statsCmd(root, args[1:], out, errOut)
+	case "replay":
+		return replayCmd(root, args[1:], out, errOut)
+	case "run":
+		return runCmd(root, args[1:], out, errOut)
 	case "graph", "scip":
 		return structuralCmd(args[0], root, args[1:], out, errOut)
 	default:
@@ -121,6 +127,9 @@ Commands:
   memory SUBCOMMAND          add|search|list|prune|export|import durable memory
   graph sync|status          build/refresh code-review-graph state (--repo, --timeout)
   scip sync|status           build/refresh SCIP indexes (--repo, --language, --timeout)
+  stats [--recommend]        summarize local retrieval traces (advisory feedback only)
+  replay RUN_ID [--strict]   verify and reconstruct a recorded run without executing anything
+  run inspect|verify RUN_ID  print a run journal / check it against the current workspace
   repos list|refresh|include|exclude  manage the repository registry
   index                      rebuild indexes (--mode auto|incremental|full, --incremental)
   doctor [--strict]          validate the environment

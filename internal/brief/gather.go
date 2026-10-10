@@ -36,6 +36,7 @@ type gathered struct {
 	items     []model.ContextItem
 	attempted []string
 	fallbacks []string
+	stale     int
 }
 
 func (g *gathered) note(format string, args ...any) {
@@ -82,6 +83,7 @@ func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, 
 			files[key] = lines
 			if lines == nil {
 				stale[hit.Repository]++
+				g.stale++
 			}
 		}
 		if lines == nil {

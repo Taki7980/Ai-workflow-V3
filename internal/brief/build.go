@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/handoff"
@@ -14,6 +15,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/routing"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
+	"github.com/Taki7980/ai-workflow-v3/internal/telemetry"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
@@ -25,6 +27,37 @@ type Options struct {
 	WriteHandoff bool
 	// ReadOnly skips last-brief/handoff persistence (V2 `context`).
 	ReadOnly bool
+	// Trace forces a trace + run journal even for Answer lanes or read-only runs.
+	Trace bool
+}
+
+// loadIndexes returns the included repositories, their loadable indexes,
+// the index-file map used for the workspace fingerprint (nil when no index
+// loaded), and the repositories whose index could not be loaded.
+func loadIndexes(root string, reg workspace.Registry) ([]workspace.Repository, map[string]any, map[string]indexer.Index, []string) {
+	included := []workspace.Repository{}
+	indexes := map[string]indexer.Index{}
+	missing := []string{}
+	for _, repo := range reg.Repositories {
+		if !repo.Included {
+			continue
+		}
+		included = append(included, repo)
+		idx, err := indexer.Load(root, repo)
+		if err != nil {
+			missing = append(missing, repo.RelativePath)
+			continue
+		}
+		indexes[repo.RelativePath] = idx
+	}
+	var indexFiles map[string]any
+	if len(indexes) > 0 {
+		indexFiles = map[string]any{}
+		for rel, idx := range indexes {
+			indexFiles[rel] = idx.Files
+		}
+	}
+	return included, indexFiles, indexes, missing
 }
 
 // LastBriefPath is where non-answer briefs are persisted for downstream tools.
@@ -93,41 +126,48 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	}
 
 	g := &gathered{}
-	included := []workspace.Repository{}
+	included, indexFiles, indexes, missing := loadIndexes(root, reg)
 	expected := map[string]bool{}
 	roots := []string{}
-	indexes := map[string]indexer.Index{}
-	for _, repo := range reg.Repositories {
-		if !repo.Included {
-			continue
-		}
-		included = append(included, repo)
+	for _, repo := range included {
 		expected[repo.RepositoryID] = true
 		roots = append(roots, filepath.Join(root, filepath.FromSlash(repo.RelativePath)))
-		idx, err := indexer.Load(root, repo)
-		if err != nil {
-			g.note("index unavailable: %s", repo.RelativePath)
-			continue
-		}
-		indexes[repo.RelativePath] = idx
 	}
+	for _, rel := range missing {
+		g.note("index unavailable: %s", rel)
+	}
+	latency := map[string]float64{}
+	stage := func(name string, start time.Time) {
+		latency[name] = float64(time.Since(start).Microseconds()) / 1000
+	}
+	began := time.Now()
 	query := strings.TrimSpace(strings.Join([]string{task, opt.Symbol, opt.Endpoint}, " "))
+	t := time.Now()
 	gatherIndex(g, root, query, included, indexes, cfg)
+	stage("index", t)
+	t = time.Now()
 	gatherTargeted(ctx, g, root, query, included, indexes, cfg.Context.MaxResultsPerSource)
+	stage("targeted_source", t)
+	t = time.Now()
 	gatherMemory(g, root, query, cfg)
+	stage("memory", t)
 
 	threshold := cfg.Context.Sufficiency.Threshold
 	pre := EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, threshold)
 	skipped, providerErrors := map[string]string{}, map[string]string{}
 	structuralRan := false
 	if plan.UseStructural && !pre.StructuralComplete {
+		t = time.Now()
 		structuralRan = expandStructural(ctx, g, root, task, opt, plan, included, changed, cfg, threshold, skipped, providerErrors)
 		pre = EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, threshold)
+		stage("structural", t)
 	}
 	budget := laneBudget(cfg, decision.Lane)
 	limit := adaptiveTokens(budget.EstimatedTokens, pre.Score, cfg.Context.AdaptiveBudget)
 	mandatory := plan.UseStructural && cfg.Context.Selector.MandatoryStructuralEvidence
+	t = time.Now()
 	selected := selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, plan.StructuralPatterns, mandatory)
+	stage("selection", t)
 
 	final := EvaluateSufficiency(task, selected, plan.UseStructural, plan.StructuralPatterns, threshold)
 	sel := cfg.Context.SelectiveRetrieval
@@ -137,13 +177,6 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		g.note("structural evidence incomplete; source fallback used")
 	}
 
-	var indexFiles map[string]any
-	if len(indexes) > 0 {
-		indexFiles = map[string]any{}
-		for rel, idx := range indexes {
-			indexFiles[rel] = idx.Files
-		}
-	}
 	if plan.UseSemantic {
 		skipped["semantic"] = "provider not configured"
 	}
@@ -194,6 +227,12 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		EstimatedContextTokensUsed: estimateTokens(strings.Join(texts, "\n")),
 		OutputCompression:          compression,
 		ChangedFilesDetected:       changed,
+	}
+	if opt.Trace || (!opt.ReadOnly && decision.Lane != model.LaneAnswer) {
+		if telemetry.Enabled(cfg, decision.Lane, opt.Trace) {
+			stage("total", began)
+			record(ctx, root, task, cfg, &p, g.items, selected, included, latency, g.stale)
+		}
 	}
 	if decision.Lane == model.LaneAnswer || opt.ReadOnly {
 		return p, nil
