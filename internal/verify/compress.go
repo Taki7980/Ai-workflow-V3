@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 )
 
 // Compress bounds noisy text exactly like V2 compress.compress_text: keep 75%
@@ -40,15 +42,12 @@ func Compress(text string, maxLines, maxChars int) string {
 // back to Compress on any failure or blank output.
 func CompressPreferRTK(text string, maxLines, maxChars int, filter string) string {
 	if path, err := exec.LookPath("rtk"); err == nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		args := []string{"pipe"}
+		argv := []string{path, "pipe"}
 		if filter != "" {
-			args = append(args, "--filter", filter)
+			argv = append(argv, "--filter", filter)
 		}
-		cmd := exec.CommandContext(ctx, path, args...)
-		cmd.Stdin = strings.NewReader(text)
-		if out, err := cmd.Output(); err == nil && strings.TrimSpace(string(out)) != "" {
+		out, err := procx.Output(context.Background(), procx.Cmd{Argv: argv, Env: procx.SafeEnv(), Stdin: []byte(text), Timeout: 3 * time.Second, MaxStdout: 8 << 20})
+		if err == nil && strings.TrimSpace(string(out)) != "" {
 			return string(out)
 		}
 	}

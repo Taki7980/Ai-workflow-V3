@@ -1,7 +1,6 @@
 package structural
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -11,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 )
 
@@ -42,29 +42,25 @@ func clip(s string) string {
 }
 
 func runTool(ctx context.Context, timeout time.Duration, dir string, env []string, exe string, args ...string) ([]byte, error) {
-	cctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	cmd := exec.CommandContext(cctx, exe, args...)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), env...)
-	cmd.WaitDelay = 2 * time.Second
-	var stdout, stderr bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &stdout, &stderr
-	err := cmd.Run()
-	if cctx.Err() == context.DeadlineExceeded {
+	r, err := procx.Run(ctx, procx.Cmd{Argv: append([]string{exe}, args...), Dir: dir, Env: append(procx.InheritEnv(), env...), Timeout: timeout, MaxStdout: 32 << 20})
+	switch {
+	case err != nil:
+		return nil, fmt.Errorf("%s", clip(err.Error()))
+	case r.TimedOut:
 		return nil, fmt.Errorf("timed out after %s", timeout)
-	}
-	if err != nil {
-		msg := stderr.String()
+	case r.StdoutExceeded:
+		return nil, fmt.Errorf("output exceeded %d bytes", 32<<20)
+	case r.ExitCode != 0:
+		msg := string(r.Stderr)
 		if strings.TrimSpace(msg) == "" {
-			msg = stdout.String()
+			msg = string(r.Stdout)
 		}
 		if strings.TrimSpace(msg) == "" {
-			msg = err.Error()
+			msg = fmt.Sprintf("exit status %d", r.ExitCode)
 		}
 		return nil, fmt.Errorf("%s", clip(msg))
 	}
-	return stdout.Bytes(), nil
+	return r.Stdout, nil
 }
 
 func crgVersion(ctx context.Context, exe string) string {

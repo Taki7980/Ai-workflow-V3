@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
+
 	"fmt"
 	"maps"
 	"os"
@@ -24,6 +24,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
 	"github.com/Taki7980/ai-workflow-v3/internal/memory"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
@@ -194,16 +195,16 @@ func ripgrep(ctx context.Context, rg, root, term string, repos []string, limit i
 			args = append(args, "--glob", "!"+n+"/**")
 		}
 		args = append(args, "--", term)
-		cctx, cancel := context.WithTimeout(ctx, 6*time.Second)
-		cmd := exec.CommandContext(cctx, rg, args...)
-		cmd.Dir = filepath.Join(root, filepath.FromSlash(repo))
-		raw, err := cmd.Output()
-		cancel()
-		var exitErr *exec.ExitError
-		if err != nil && !(errors.As(err, &exitErr) && exitErr.ExitCode() == 1) { // 1 = no match
+		// SafeEnv drops RIPGREP_CONFIG_PATH, which could inject arbitrary rg flags.
+		res, err := procx.Run(ctx, procx.Cmd{Argv: append([]string{rg}, args...), Dir: filepath.Join(root, filepath.FromSlash(repo)),
+			Env: procx.SafeEnv(), Timeout: 6 * time.Second, MaxStdout: 4 << 20})
+		if err != nil {
 			return nil, err
 		}
-		sc := bufio.NewScanner(bytes.NewReader(raw))
+		if res.TimedOut || (res.ExitCode != 0 && res.ExitCode != 1) { // 1 = no match
+			return nil, fmt.Errorf("ripgrep failed (exit %d)", res.ExitCode)
+		}
+		sc := bufio.NewScanner(bytes.NewReader(res.Stdout))
 		for sc.Scan() && len(out) < limit {
 			parts := strings.SplitN(sc.Text(), ":", 3)
 			if len(parts) != 3 {

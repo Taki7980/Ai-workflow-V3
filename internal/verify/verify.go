@@ -4,11 +4,11 @@ package verify
 
 import (
 	"context"
-	"errors"
-	"os/exec"
+	"fmt"
 	"time"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/handoff"
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 )
 
 type CheckResult struct {
@@ -49,23 +49,17 @@ func runOne(parent context.Context, root, raw string) CheckResult {
 	if len(argv) == 0 {
 		return CheckResult{raw, 2, "empty check command"}
 	}
-	ctx, cancel := context.WithTimeout(parent, checkTimeout)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	cmd.Dir = root
-	cmd.WaitDelay = 2 * time.Second
-	out, err := cmd.CombinedOutput()
-	if ctx.Err() == context.DeadlineExceeded {
-		return CheckResult{raw, 124, err.Error()}
-	}
-	var exitErr *exec.ExitError
+	// User checks are trusted local commands: full environment, no shell.
+	r, err := procx.Run(parent, procx.Cmd{Argv: argv, Dir: root, Env: procx.InheritEnv(), Timeout: checkTimeout, MaxStdout: 32 << 20, MergeStderr: true})
 	switch {
-	case errors.As(err, &exitErr):
-		return CheckResult{raw, exitErr.ExitCode(), Compress(string(out), 60, 10000)}
 	case err != nil:
 		return CheckResult{raw, 124, err.Error()}
+	case r.TimedOut:
+		return CheckResult{raw, 124, fmt.Sprintf("timed out after %s", checkTimeout)}
+	case r.StdoutExceeded:
+		return CheckResult{raw, 125, "output exceeded 32 MiB; check stopped\n" + Compress(string(r.Stdout), 60, 10000)}
 	}
-	return CheckResult{raw, 0, Compress(string(out), 60, 10000)}
+	return CheckResult{raw, r.ExitCode, Compress(string(r.Stdout), 60, 10000)}
 }
 
 // Verify runs checks and validates the handoff; ok requires both.

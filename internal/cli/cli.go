@@ -14,6 +14,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/doctor"
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
+	"github.com/Taki7980/ai-workflow-v3/internal/provider"
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/routing"
 	setuppkg "github.com/Taki7980/ai-workflow-v3/internal/setup"
@@ -30,6 +31,11 @@ func Run(args []string, out, errOut io.Writer) int {
 
 // RunWithStdin is Run with an explicit stdin for commands that read input.
 func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
+	// Internal rlimit exec wrapper used inside the sandbox; its argv is the
+	// provider's, so it must bypass --root extraction.
+	if len(args) > 0 && args[0] == provider.ExecWrapperCommand {
+		return provider.ExecWithLimits(args[1:], errOut)
+	}
 	root, args, err := extractRoot(args)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
