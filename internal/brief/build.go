@@ -23,6 +23,8 @@ type Options struct {
 	Endpoint     string
 	ChangedFiles []string
 	WriteHandoff bool
+	// ReadOnly skips last-brief/handoff persistence (V2 `context`).
+	ReadOnly bool
 }
 
 // LastBriefPath is where non-answer briefs are persisted for downstream tools.
@@ -193,7 +195,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		OutputCompression:          compression,
 		ChangedFilesDetected:       changed,
 	}
-	if decision.Lane == model.LaneAnswer {
+	if decision.Lane == model.LaneAnswer || opt.ReadOnly {
 		return p, nil
 	}
 	if opt.WriteHandoff {

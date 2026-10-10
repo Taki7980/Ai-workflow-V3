@@ -43,7 +43,7 @@ func writeContextWorkspace(t *testing.T, cfg config.Config, idx indexer.Index) s
 	return root
 }
 
-func TestContextCommandRetainsHitArraySchema(t *testing.T) {
+func TestSearchCommandRetainsHitArraySchema(t *testing.T) {
 	cfg := config.Default()
 	idx := indexer.Index{
 		Files: map[string]indexer.FileState{
@@ -55,20 +55,20 @@ func TestContextCommandRetainsHitArraySchema(t *testing.T) {
 	}
 	root := writeContextWorkspace(t, cfg, idx)
 	var out, errOut bytes.Buffer
-	code := Run([]string{"--root", root, "context", "ProcessPayment"}, &out, &errOut)
+	code := Run([]string{"--root", root, "search", "ProcessPayment"}, &out, &errOut)
 	if code != 0 {
 		t.Fatalf("code=%d stderr=%s", code, errOut.String())
 	}
 	var hits []indexer.Hit
 	if err := json.Unmarshal(out.Bytes(), &hits); err != nil {
-		t.Fatalf("context output must remain []indexer.Hit JSON: %v\n%s", err, out.String())
+		t.Fatalf("search output must remain []indexer.Hit JSON: %v\n%s", err, out.String())
 	}
 	if len(hits) != 1 || hits[0].Path != "service.go" {
 		t.Fatalf("hits=%#v", hits)
 	}
 }
 
-func TestContextCommandRespectsAnswerLaneTokenBudget(t *testing.T) {
+func TestSearchCommandRespectsAnswerLaneTokenBudget(t *testing.T) {
 	cfg := config.Default()
 	cfg.Budgets.Answer.EstimatedTokens = 5
 	idx := indexer.Index{
@@ -83,7 +83,7 @@ func TestContextCommandRespectsAnswerLaneTokenBudget(t *testing.T) {
 	}
 	root := writeContextWorkspace(t, cfg, idx)
 	var out, errOut bytes.Buffer
-	code := Run([]string{"--root", root, "context", "Payment"}, &out, &errOut)
+	code := Run([]string{"--root", root, "search", "Payment"}, &out, &errOut)
 	if code != 0 {
 		t.Fatalf("code=%d stderr=%s", code, errOut.String())
 	}

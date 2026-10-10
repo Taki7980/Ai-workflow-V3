@@ -9,13 +9,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/doctor"
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/routing"
-	"github.com/Taki7980/ai-workflow-v3/internal/storage"
+	setuppkg "github.com/Taki7980/ai-workflow-v3/internal/setup"
+	"github.com/Taki7980/ai-workflow-v3/internal/structural"
 	"github.com/Taki7980/ai-workflow-v3/internal/version"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
@@ -38,11 +40,18 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return 2
 	}
 	switch args[0] {
+	case "help", "-h", "--help":
+		usage(out)
+		return 0
 	case "--version", "version":
 		fmt.Fprintln(out, version.Version)
 		return 0
 	case "setup":
 		return setup(root, args[1:], out, errOut)
+	case "bootstrap", "init":
+		return projectCmd(args[0], root, args[1:], out, errOut)
+	case "search":
+		return searchCmd(root, args[1:], out, errOut)
 	case "route":
 		return route(root, args[1:], out, errOut)
 	case "repos":
@@ -99,18 +108,21 @@ func usage(w io.Writer) {
 Usage: ai-workflow [--root PATH] <command>
 
 Commands:
-  setup                      discover repositories, write config, build indexes
+  setup                      connect the project: config, repos, excludes, indexes, CRG (safe to rerun)
+  bootstrap --project-name N strict scaffold; refuses existing control-plane files
+  init --project-name N      stamp the project name into agent rules and rebuild indexes
   brief TASK                 emit the agent brief (--format json|markdown|prompt)
   route TASK                 classify lane, risk and retrieval intent
-  context QUERY              search indexed symbols
-  handoff                    validate ai-workspace/handoff/HANDOFF.md
+  context TASK               gather bounded evidence without writing state (--symbol, --endpoint, --changed-file)
+  search QUERY               search indexed symbols
+  handoff [validate]         validate ai-workspace/handoff/HANDOFF.md
   verify --check CMD         run checks without a shell (+ handoff validation)
   compress                   bound noisy output from stdin or --file
   memory SUBCOMMAND          add|search|list|prune|export|import durable memory
   graph sync|status          build/refresh code-review-graph state (--repo, --timeout)
   scip sync|status           build/refresh SCIP indexes (--repo, --language, --timeout)
-  repos list|refresh         manage the repository registry
-  index                      rebuild indexes (--mode auto|incremental|full)
+  repos list|refresh|include|exclude  manage the repository registry
+  index                      rebuild indexes (--mode auto|incremental|full, --incremental)
   doctor [--strict]          validate the environment
   version                    print the version`)
 }
@@ -123,65 +135,82 @@ func printJSON(w io.Writer, v any) {
 	_ = enc.Encode(v)
 }
 
-// setup implements the "setup" subcommand: it writes a default config if one
-// does not already exist, discovers repositories under root, saves the
-// workspace registry, and optionally builds indexes for the discovered repos.
+// setup implements V2 `setup`: connect the project, discover repositories,
+// install Git-local excludes, build indexes and sync Code Review Graph.
 func setup(root string, args []string, out, errOut io.Writer) int {
-	fs := flag.NewFlagSet("setup", flag.ContinueOnError)
-	fs.SetOutput(errOut)
+	fs := newFlags("setup", errOut)
+	name := fs.String("project-name", "", "display name (default: directory name)")
+	jsonOut := fs.Bool("json", false, "machine-readable result")
+	create := fs.Bool("create", false, "create the project root when it does not exist")
+	legacy := fs.Bool("legacy-root-files", false, "also create root AGENTS.md and .ai/PROJECT")
+	noDiscover := fs.Bool("no-discover-repos", false, "skip local Git repository discovery")
 	depth := fs.Int("discover-depth", 8, "maximum nested repository depth")
-	jsonOut := fs.Bool("json", false, "JSON output")
+	noCRG := fs.Bool("no-crg-sync", false, "skip Code Review Graph build/update")
 	noIndex := fs.Bool("no-index", false, "skip index build")
-	if err := fs.Parse(args); err != nil {
+	fullIndex := fs.Bool("full-index", false, "force a full index rebuild")
+	if pos, err := parseInterspersed(fs, args); err != nil || len(pos) != 0 {
 		return 2
 	}
-	if err := os.MkdirAll(filepath.Join(root, "ai-workspace", "config"), 0o755); err != nil {
-		fmt.Fprintln(errOut, err)
-		return 1
+	if *noIndex && *fullIndex {
+		fmt.Fprintln(errOut, "--no-index and --full-index are mutually exclusive")
+		return 2
 	}
-	cfg := config.Default()
-	cfg.Workspace.Discovery.MaxDepth = *depth
-	if _, err := os.Stat(config.Path(root)); errors.Is(err, os.ErrNotExist) {
-		if err := storage.WriteJSON(config.Path(root), config.DefaultDocument()); err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
-		}
-	} else if err != nil {
-		fmt.Fprintln(errOut, err)
-		return 1
-	} else {
-		loaded, err := config.Load(root)
-		if err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
-		}
-		cfg = loaded
+	mode := setuppkg.IndexAuto
+	if *noIndex {
+		mode = setuppkg.IndexNone
+	} else if *fullIndex {
+		mode = setuppkg.IndexFull
 	}
-	repos, err := workspace.Discover(context.Background(), root, *depth, cfg.Workspace.Discovery.AutoIncludeOnSetup)
+	r, err := setuppkg.Run(context.Background(), root, setuppkg.Options{
+		ProjectName: *name, Create: *create, Index: mode, LegacyRootFiles: *legacy,
+		Discover: !*noDiscover, DiscoverDepth: *depth, SyncCRG: !*noCRG,
+	})
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	if err := workspace.Save(root, repos); err != nil {
+	if *jsonOut {
+		printJSON(out, r)
+		return 0
+	}
+	fmt.Fprintf(out, "AI Workflow ready: %s\nRoot: %s\n", r.Project, r.Root)
+	if len(r.Created) > 0 {
+		fmt.Fprintln(out, "Created: "+strings.Join(r.Created, ", "))
+	}
+	if len(r.Preserved) > 0 {
+		fmt.Fprintln(out, "Preserved: "+strings.Join(r.Preserved, ", "))
+	}
+	if s := r.Registry.Summary; s != nil {
+		fmt.Fprintf(out, "Repositories: %d discovered; %d active\n", s.Discovered, s.Accepted)
+	}
+	if crg, ok := r.CodeReview.(structural.SyncReport); ok && crg.Installed {
+		fmt.Fprintf(out, "Code Review Graph: %d/%d repositories ready under ai-workspace/code-review-graph\n", crg.Ready, crg.Attempted)
+	}
+	fmt.Fprintln(out, "Next: "+r.Next)
+	return 0
+}
+
+// projectCmd implements `bootstrap` and `init`, which both require --project-name.
+func projectCmd(kind, root string, args []string, out, errOut io.Writer) int {
+	fs := newFlags(kind, errOut)
+	name := fs.String("project-name", "", "project name (required)")
+	if pos, err := parseInterspersed(fs, args); err != nil || len(pos) != 0 {
+		return 2
+	}
+	if strings.TrimSpace(*name) == "" {
+		fmt.Fprintf(errOut, "%s requires --project-name\n", kind)
+		return 2
+	}
+	run := setuppkg.Bootstrap
+	if kind == "init" {
+		run = setuppkg.Init
+	}
+	r, err := run(context.Background(), root, *name)
+	if err != nil {
 		fmt.Fprintln(errOut, err)
 		return 1
 	}
-	indexes := 0
-	if !*noIndex {
-		reg := workspace.Registry{Version: workspace.RegistryVersion, ReviewRequired: true, Repositories: repos}
-		built, err := indexer.BuildWorkspace(context.Background(), root, reg)
-		if err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
-		}
-		indexes = len(built)
-	}
-	result := map[string]any{"root": root, "repositories": len(repos), "indexes": indexes, "config": config.Path(root), "registry": workspace.RegistryPath(root)}
-	if *jsonOut {
-		printJSON(out, result)
-	} else {
-		fmt.Fprintf(out, "setup complete: %d repos, %d indexes\n", len(repos), indexes)
-	}
+	printJSON(out, r)
 	return 0
 }
 
@@ -203,43 +232,64 @@ func route(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
-// repos implements the "repos" subcommand, supporting "list" to print the
-// current workspace registry and "refresh" to rediscover and re-save it.
+// repos implements `repos list|refresh|include|exclude` (V2 parity).
 func repos(root string, args []string, out, errOut io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprintln(errOut, "repos requires list or refresh")
+		fmt.Fprintln(errOut, "repos requires list, refresh, include, or exclude")
 		return 2
+	}
+	fail := func(err error) int {
+		fmt.Fprintln(errOut, err)
+		return 1
 	}
 	switch args[0] {
 	case "list":
 		reg, err := workspace.Load(root)
 		if err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
+			return fail(err)
 		}
-		printJSON(out, reg)
-		return 0
+		printJSON(out, workspace.Summarize(root, reg.Repositories))
 	case "refresh":
+		fs := newFlags("repos refresh", errOut)
+		depth := fs.Int("discover-depth", -1, "override configured discovery depth")
+		if pos, err := parseInterspersed(fs, args[1:]); err != nil || len(pos) != 0 {
+			return 2
+		}
 		cfg, err := config.Load(root)
 		if err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
+			return fail(err)
 		}
-		r, err := workspace.Discover(context.Background(), root, cfg.Workspace.Discovery.MaxDepth, cfg.Workspace.Discovery.AutoIncludeOnSetup)
+		if *depth < 0 {
+			*depth = cfg.Workspace.Discovery.MaxDepth
+		}
+		// refresh never auto-includes: new repositories wait for explicit review.
+		r, err := workspace.Refresh(context.Background(), root, *depth, false)
 		if err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
+			return fail(err)
 		}
-		if err := workspace.Save(root, r); err != nil {
-			fmt.Fprintln(errOut, err)
-			return 1
+		printJSON(out, workspace.Summarize(root, r))
+	case "include", "exclude":
+		if len(args) != 2 {
+			fmt.Fprintf(errOut, "repos %s requires one repository selector\n", args[0])
+			return 2
 		}
-		printJSON(out, r)
-		return 0
+		r, changed, err := workspace.SetIncluded(root, args[1], args[0] == "include")
+		if err != nil {
+			return fail(err)
+		}
+		action := args[0] + "d"
+		printJSON(out, struct {
+			workspace.Summary
+			Changed any `json:"changed"`
+		}{workspace.Summarize(root, r), struct {
+			workspace.Repository
+			Action string `json:"action"`
+		}{changed, action}})
 	default:
-		fmt.Fprintln(errOut, "repos requires list or refresh")
+		fmt.Fprintln(errOut, "repos requires list, refresh, include, or exclude")
 		return 2
 	}
+	return 0
 }
 
 // index implements the "index" subcommand with explicit freshness modes and
@@ -248,8 +298,15 @@ func index(root string, args []string, out, errOut io.Writer) int {
 	fs := flag.NewFlagSet("index", flag.ContinueOnError)
 	fs.SetOutput(errOut)
 	modeValue := fs.String("mode", string(indexer.BuildAuto), "index mode: auto, incremental, or full")
+	incremental := fs.Bool("incremental", false, "alias for --mode incremental (V2)")
+	// V3 always hashes every source file, so V2's strict-hash flag is satisfied by default.
+	fs.Bool("strict-hash", false, "accepted for V2 compatibility; hashing is always strict")
+	fs.Bool("verify-hashes", false, "alias of --strict-hash")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if *incremental {
+		*modeValue = string(indexer.BuildIncremental)
 	}
 	if fs.NArg() != 0 {
 		fmt.Fprintln(errOut, "index does not accept positional arguments")
@@ -278,11 +335,11 @@ func index(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
-// contextCmd implements the "context" subcommand: it loads the indexes for
-// all included repositories and prints the selected context hits for the query.
-func contextCmd(root string, args []string, out, errOut io.Writer) int {
+// searchCmd implements the "search" subcommand: it loads the indexes for
+// all included repositories and prints the selected symbol hits for the query.
+func searchCmd(root string, args []string, out, errOut io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(errOut, "context requires one query argument")
+		fmt.Fprintln(errOut, "search requires one query argument")
 		return 2
 	}
 	cfg, err := config.Load(root)

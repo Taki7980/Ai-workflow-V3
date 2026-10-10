@@ -81,8 +81,40 @@ func briefCmd(root string, args []string, out, errOut io.Writer) int {
 	return 0
 }
 
+// contextCmd implements V2 `context TASK`: the brief retrieval pipeline
+// without persistence, emitted as lane/risk/retrieval/items.
+func contextCmd(root string, args []string, out, errOut io.Writer) int {
+	fs := newFlags("context", errOut)
+	symbol := fs.String("symbol", "", "exact symbol anchor")
+	endpoint := fs.String("endpoint", "", "endpoint anchor")
+	var changed stringList
+	fs.Var(&changed, "changed-file", "changed file (repeatable); default: detected from git")
+	pos, err := parseInterspersed(fs, args)
+	if err != nil {
+		return 2
+	}
+	if len(pos) != 1 {
+		fmt.Fprintln(errOut, "context requires one task argument")
+		return 2
+	}
+	p, err := brief.Build(context.Background(), root, pos[0], brief.Options{Symbol: *symbol, Endpoint: *endpoint, ChangedFiles: changed, ReadOnly: true})
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	printJSON(out, map[string]any{
+		"lane": p.Lane, "risk": p.Risk, "confidence": p.Confidence,
+		"budget": p.Budget.EstimatedContextTokens, "retrieval": p.Retrieval,
+		"items": p.Context, "estimated_tokens": p.EstimatedContextTokensUsed,
+	})
+	return 0
+}
+
 // handoffCmd validates the active handoff; exit 1 when invalid.
 func handoffCmd(root string, args []string, out, errOut io.Writer) int {
+	if len(args) > 0 && args[0] == "validate" { // V2 spelling: `handoff validate`
+		args = args[1:]
+	}
 	if len(args) != 0 {
 		fmt.Fprintln(errOut, "handoff takes no arguments")
 		return 2
