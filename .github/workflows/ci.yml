@@ -57,7 +57,7 @@ jobs:
           echo "$out"
           grep -q -- "--- PASS: TestBubblewrapIntegration" <<<"$out"
       - name: Process-tree, env-leak and path-confinement tests
-        run: go test ./internal/procx ./internal/provider ./internal/workspace -count=1 -race
+        run: go test ./internal/procx ./internal/provider ./internal/workspace ./internal/brief -count=1 -race
       - name: Fuzz hostile inputs
         shell: bash
         run: |

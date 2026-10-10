@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 const (
@@ -70,8 +71,49 @@ type Context struct {
 	SelectiveRetrieval  SelectiveRetrieval `json:"selective_retrieval"`
 	SCIP                SCIP               `json:"scip"`
 	Telemetry           Telemetry          `json:"telemetry"`
+	Semantic            Semantic           `json:"semantic"`
+	ExternalRetrievers  []json.RawMessage  `json:"external_retrievers"`
 	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
 	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+// BuiltinSemanticProvider is the dependency-free local hybrid retriever.
+const BuiltinSemanticProvider = "builtin-local"
+
+// Semantic configures semantic retrieval (V2 context.semantic). Executable
+// authority never comes from here: provider_id resolves through the trusted
+// registry, and Command is honoured only with an explicit operator opt-in.
+type Semantic struct {
+	Mode           string          `json:"mode"` // auto | off
+	ProviderID     string          `json:"provider_id"`
+	Command        json.RawMessage `json:"command,omitempty"`
+	MaxResults     int             `json:"max_results"`
+	TimeoutSeconds float64         `json:"timeout_seconds,omitempty"`
+	MaxOutputBytes int64           `json:"max_output_bytes,omitempty"`
+}
+
+// HasCommand reports a configured (string or argv) semantic command.
+func (s Semantic) HasCommand() bool {
+	c := strings.TrimSpace(string(s.Command))
+	return c != "" && c != `""` && c != "[]" && c != "null" || strings.TrimSpace(os.Getenv("AI_WORKFLOW_SEMANTIC_CMD")) != ""
+}
+
+// SemanticProviderID returns the active semantic provider ID ("" = none or
+// an explicit command), following V2 configured_provider_id.
+func (s Semantic) SemanticProviderID() string {
+	if strings.EqualFold(s.Mode, "off") {
+		return ""
+	}
+	if env := strings.TrimSpace(os.Getenv("AI_WORKFLOW_SEMANTIC_PROVIDER_ID")); env != "" {
+		return env
+	}
+	if id := strings.TrimSpace(s.ProviderID); id != "" {
+		return id
+	}
+	if s.HasCommand() {
+		return "" // an explicit command keeps its own (opt-in) security semantics
+	}
+	return BuiltinSemanticProvider
 }
 
 // Telemetry controls local retrieval traces (V2 context.telemetry).
@@ -112,6 +154,34 @@ type Workspace struct {
 	Registry        string    `json:"registry"`
 	RepositoryGraph string    `json:"repository_graph"`
 	Discovery       Discovery `json:"discovery"`
+	// Hierarchical is V2 workspace.hierarchical_retrieval; absent fields take V2 defaults.
+	Hierarchical HierarchicalRetrieval `json:"hierarchical_retrieval"`
+}
+
+// HierarchicalRetrieval bounds which repositories a task searches.
+type HierarchicalRetrieval struct {
+	Enabled                *bool    `json:"enabled,omitempty"`
+	MaxPrimaryRepositories int      `json:"max_primary_repositories,omitempty"`
+	MaxGraphExpansions     *int     `json:"max_graph_expansions,omitempty"`
+	Relationships          []string `json:"relationships,omitempty"`
+}
+
+// Resolved returns enabled, max primary, max expansions and relationships with V2 defaults.
+func (h HierarchicalRetrieval) Resolved() (bool, int, int, []string) {
+	enabled, primary, expansions, rels := true, 2, 2, h.Relationships
+	if h.Enabled != nil {
+		enabled = *h.Enabled
+	}
+	if h.MaxPrimaryRepositories > 0 {
+		primary = h.MaxPrimaryRepositories
+	}
+	if h.MaxGraphExpansions != nil {
+		expansions = max(0, *h.MaxGraphExpansions)
+	}
+	if rels == nil {
+		rels = []string{"depends_on", "publishes_api", "consumes_schema", "deploys"}
+	}
+	return enabled, primary, expansions, rels
 }
 
 type OrchestrationBudget struct {
@@ -184,6 +254,8 @@ func Default() Config {
 			Selector:            Selector{Enabled: true, TightBudgetFraction: .30, MandatoryStructuralEvidence: true, MaxSelectorCandidates: 200},
 			SelectiveRetrieval:  SelectiveRetrieval{Enabled: true, MinimumCoverage: .15},
 			SCIP:                SCIP{Mode: "auto"},
+			Telemetry:           Telemetry{Mode: "mutations"},
+			Semantic:            Semantic{Mode: "auto", ProviderID: BuiltinSemanticProvider, MaxResults: 6},
 		},
 		Workspace: Workspace{Roots: []string{}, MaxRoots: 4, Registry: "ai-workspace/config/repositories.json", RepositoryGraph: "ai-workspace/config/repository-graph.json", Discovery: Discovery{MaxDepth: 8, RequireAcceptance: false, AutoIncludeOnSetup: true}},
 		Execution: Execution{
@@ -191,9 +263,9 @@ func Default() Config {
 			Superpowers:         Superpowers{Mode: "auto"},
 			OrchestrationBudget: OrchestrationBudget{MaxAgentSlots: 4, MaxCRGCalls: 6, MaxGraphDepth: 3, ReviewPasses: 2, VerificationPasses: 2},
 		},
-		Handoff:   Handoff{MaxLines: 30},
-		Memory:    Memory{MaxResults: 5, MinimumConfidence: .55},
-		Models:    Models{Answer: "fast", Small: "fast", FullMedium: "standard", FullHigh: "capable"},
+		Handoff: Handoff{MaxLines: 30},
+		Memory:  Memory{MaxResults: 5, MinimumConfidence: .55},
+		Models:  Models{Answer: "fast", Small: "fast", FullMedium: "standard", FullHigh: "capable"},
 	}
 }
 

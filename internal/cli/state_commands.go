@@ -1,11 +1,16 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/brief"
+	"github.com/Taki7980/ai-workflow-v3/internal/capability"
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/journal"
 	"github.com/Taki7980/ai-workflow-v3/internal/telemetry"
@@ -112,4 +117,85 @@ func runCmd(root string, args []string, out, errOut io.Writer) int {
 	}
 	printJSON(out, journal.Compatibility(id, rec, cur))
 	return 0
+}
+
+// authorizeCmd implements `authorize RUN_ID [--request FILE]`: it checks one
+// model-proposed action (JSON on stdin or in FILE) against the capability
+// policy recorded in a verified run journal. Exit 0 = allowed, 1 = denied.
+func authorizeCmd(root string, args []string, in io.Reader, out, errOut io.Writer) int {
+	fs := newFlags("authorize", errOut)
+	file := fs.String("request", "", "action request JSON file (default stdin)")
+	pos, err := parseInterspersed(fs, args)
+	if err != nil || len(pos) != 1 {
+		fmt.Fprintln(errOut, "authorize requires one run id")
+		return 2
+	}
+	rec, ok := journal.Read(root, pos[0])
+	if !ok {
+		fmt.Fprintln(errOut, "run journal not found")
+		return 1
+	}
+	if v := journal.Verify(rec, pos[0]); !v.Valid {
+		fmt.Fprintln(errOut, "run journal failed integrity verification; refusing to authorize")
+		return 1
+	}
+	policy, known, err := recordedPolicy(rec)
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	var raw []byte
+	if *file != "" {
+		raw, err = os.ReadFile(*file)
+	} else {
+		raw, err = io.ReadAll(io.LimitReader(in, 1<<20))
+	}
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		return 1
+	}
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
+	dec.DisallowUnknownFields()
+	var req capability.Request
+	if err := dec.Decode(&req); err != nil {
+		fmt.Fprintln(errOut, "invalid action request:", err)
+		return 2
+	}
+	d := capability.Authorize(policy, req, known)
+	printJSON(out, d)
+	if !d.Allowed {
+		return 1
+	}
+	return 0
+}
+
+// recordedPolicy extracts the authorization policy and known evidence IDs
+// from a verified journal.
+func recordedPolicy(rec map[string]any) (capability.Policy, map[string]bool, error) {
+	var policy capability.Policy
+	events, _ := rec["replay_events"].([]any)
+	for _, e := range events {
+		ev, _ := e.(map[string]any)
+		if ev["kind"] != "authorization" {
+			continue
+		}
+		b, _ := json.Marshal(ev["payload"])
+		if err := json.Unmarshal(b, &policy); err != nil || policy.Schema != capability.Schema {
+			return policy, nil, errors.New("run journal has no capability-v2 policy (recorded by an older version?)")
+		}
+	}
+	if policy.Schema == "" {
+		return policy, nil, errors.New("run journal has no authorization event")
+	}
+	known := map[string]bool{}
+	sel, _ := rec["selected_evidence"].([]any)
+	for _, s := range sel {
+		m, _ := s.(map[string]any)
+		e, _ := m["evidence"].(map[string]any)
+		if id, _ := e["evidence_id"].(string); id != "" {
+			known[id] = true
+		}
+	}
+	return policy, known, nil
 }

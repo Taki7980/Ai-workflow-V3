@@ -89,6 +89,8 @@ func descriptor(it model.ContextItem, rank int) map[string]any {
 	}
 	if rank > 0 {
 		d["rank"] = rank
+	} else if it.Evidence != nil { // selected evidence keeps its envelope for later authorization
+		d["evidence"] = it.Evidence
 	}
 	return d
 }
@@ -150,10 +152,6 @@ func record(ctx context.Context, root, task string, cfg config.Config, p *Packet
 		"sufficiency": r.Sufficiency, "selective_retrieval": r.SelectiveRetrieval, "fallbacks": r.Fallbacks,
 		"adaptive_context_tokens": r.AdaptiveContextTokens, "hard_context_tokens": r.HardContextTokens,
 	}
-	repoIDs := make([]string, 0, len(included))
-	for _, rp := range included {
-		repoIDs = append(repoIDs, rp.RepositoryID)
-	}
 	rec, err := journal.Build(map[string]any{
 		"run_id": runID, "policy_identity": policy,
 		"workspace_state":   map[string]any{"fingerprint": r.WorkspaceState.Fingerprint, "git_head": r.WorkspaceState.GitHead},
@@ -165,13 +163,12 @@ func record(ctx context.Context, root, task string, cfg config.Config, p *Packet
 		"selected_evidence": evidence,
 	}, []journal.Event{
 		{Kind: "routing", Payload: p.RouteDecision},
-		{Kind: "repository_routing", Payload: map[string]any{"mode": "all_included", "repository_ids": repoIDs}},
+		{Kind: "repository_routing", Payload: r.RepositoryRouting},
 		{Kind: "retrieval", Payload: retrievalRecord},
 		{Kind: "ranking", Payload: map[string]any{"algorithm_policy": "adaptive_math", "candidate_count": len(ranked), "candidates": ranked}},
 		{Kind: "selection", Payload: map[string]any{"selected_count": len(evidence), "selected_evidence": evidence}},
 		{Kind: "orchestration", Payload: r.Orchestration},
-		// shortcut: V2 capability-v2 tool authorization is not ported yet; recorded as not evaluated until the Phase 4 capability gate lands.
-		{Kind: "authorization", Payload: map[string]any{"schema": "capability-v2", "evaluated": false}},
+		{Kind: "authorization", Payload: p.Retrieval.AuthorizationPolicy},
 	})
 	if err != nil {
 		return
