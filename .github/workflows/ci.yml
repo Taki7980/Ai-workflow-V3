@@ -67,6 +67,41 @@ jobs:
           go test ./internal/workspace -run '^$' -fuzz '^FuzzRemoteIdentity$' -fuzztime 20s
           go test ./internal/verify -run '^$' -fuzz '^FuzzSplitCommand$' -fuzztime 20s
 
+  workflow-benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Checkout pinned V2 oracle
+        uses: actions/checkout@v7
+        with:
+          repository: Taki7980/ai-workflow-control-plane-v2
+          ref: 554302c378f69809fbd09ff001eb7cfdb9af5005
+          path: .compat/v2
+          persist-credentials: false
+      - name: V3 must clear V2's own benchmark floors on V2's sample tasks
+        shell: bash
+        run: |
+          sudo apt-get install -y -qq ripgrep
+          go build -o /tmp/aiw ./cmd/ai-workflow
+          cd .compat/v2
+          /tmp/aiw setup --no-crg-sync > /dev/null
+          /tmp/aiw benchmark --tasks benchmarks/sample-tasks.json --output /tmp/bench.json > /dev/null
+          python3 - <<'PY'
+          import json, sys
+          s = json.load(open("/tmp/bench.json"))["summary"]
+          floors = json.load(open("benchmarks/baseline.json"))["minimum"]
+          floors["mean_recall_at_k"] = 0.60          # V3 regression floor
+          ceilings = {"mean_estimated_context_tokens": 650}  # V3 efficiency ceiling (V2 baseline 376.62)
+          bad = [f"{k}={s.get(k)} < {v}" for k, v in floors.items() if (s.get(k) or 0) < v]
+          bad += [f"{k}={s.get(k)} > {v}" for k, v in ceilings.items() if s.get(k) is None or s[k] > v]
+          print(json.dumps({k: s.get(k) for k in [*floors, *ceilings]}, indent=1))
+          sys.exit("benchmark gate failed: " + "; ".join(bad) if bad else 0)
+          PY
+
   installer:
     strategy:
       matrix:

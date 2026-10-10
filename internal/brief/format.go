@@ -71,6 +71,8 @@ type Packet struct {
 	OutputCompression          string               `json:"output_compression"`
 	ChangedFilesDetected       []string             `json:"changed_files_detected"`
 	HandoffWritten             string               `json:"handoff_written,omitempty"`
+	// Candidates is the full gathered pool before selection (benchmarks only).
+	Candidates []model.ContextItem `json:"-"`
 }
 
 func orNone(xs []string) string {

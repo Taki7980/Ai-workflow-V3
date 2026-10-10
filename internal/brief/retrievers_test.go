@@ -13,6 +13,7 @@ import (
 	"testing"
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
+	"github.com/Taki7980/ai-workflow-v3/internal/model"
 	"github.com/Taki7980/ai-workflow-v3/internal/provider"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 )
@@ -103,5 +104,26 @@ func TestExternalRetrieverThroughTrustedRegistry(t *testing.T) {
 	}
 	if !strings.Contains(p.Retrieval.ProviderErrors["external:rogue"], "disabled") {
 		t.Fatalf("inline repository command must be refused: %v", p.Retrieval.ProviderErrors)
+	}
+}
+
+func TestCapBySource(t *testing.T) {
+	mk := func(src string, chars int) model.ContextItem {
+		return model.ContextItem{Source: src, Text: strings.Repeat("x", chars)}
+	}
+	items := []model.ContextItem{mk("lightweight_index", 400), mk("lightweight_index", 400), mk("lightweight_index", 400),
+		mk("semantic", 4000), mk("targeted_source", 40), mk("targeted_source", 40), mk("targeted_source", 40)}
+	// 1000-token budget: lightweight share .3 = 300 tokens (3 x 100 fits), max 2 items per source.
+	got := capBySource(items, 1000, map[string]float64{"lightweight": .3, "source_fallback": .15}, 2, nil, false)
+	counts := map[string]int{}
+	for _, it := range got {
+		counts[it.Source]++
+	}
+	if counts["lightweight_index"] != 2 || counts["targeted_source"] != 2 || counts["semantic"] != 1 {
+		t.Fatalf("counts=%v", counts)
+	}
+	// The first item of a bucket is kept even when it alone exceeds the share.
+	if got := capBySource([]model.ContextItem{mk("lightweight_index", 8000)}, 100, map[string]float64{"lightweight": .3}, 6, nil, false); len(got) != 1 {
+		t.Fatal("first item must survive")
 	}
 }
