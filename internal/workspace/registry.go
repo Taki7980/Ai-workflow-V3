@@ -261,6 +261,107 @@ func Load(root string) (Registry, error) {
 	return r, nil
 }
 
+// Summary is the V2 `repos list` payload: the registry plus counts and a
+// path-free identity fingerprint.
+type Summary struct {
+	Path           string       `json:"path"`
+	Version        int          `json:"version"`
+	ReviewRequired bool         `json:"review_required"`
+	Discovered     int          `json:"discovered"`
+	Accepted       int          `json:"accepted"`
+	Fingerprint    string       `json:"fingerprint"`
+	Repositories   []Repository `json:"repositories"`
+}
+
+// Summarize builds the V2 registry_summary payload for repos.
+func Summarize(root string, repos []Repository) Summary {
+	accepted := 0
+	ids := make([]map[string]any, 0, len(repos))
+	for _, r := range repos {
+		if r.Included {
+			accepted++
+		}
+		ids = append(ids, map[string]any{
+			"repository_id": r.RepositoryID, "relative_path": r.RelativePath,
+			"remote_identity": r.RemoteIdentity, "head_ref": r.HeadRef,
+			"head_sha": r.HeadSHA, "included": r.Included,
+		})
+	}
+	if repos == nil {
+		repos = []Repository{}
+	}
+	return Summary{
+		Path: RegistryPath(root), Version: RegistryVersion, ReviewRequired: true,
+		Discovered: len(repos), Accepted: accepted, Fingerprint: digest(ids), Repositories: repos,
+	}
+}
+
+// Refresh rediscovers repositories while preserving explicit include/exclude
+// decisions (V2 refresh_registry). New repositories get includeNew.
+func Refresh(ctx context.Context, root string, maxDepth int, includeNew bool) ([]Repository, error) {
+	existing := map[string]Repository{}
+	reg, err := Load(root)
+	switch {
+	case err == nil:
+		for _, r := range reg.Repositories {
+			existing[r.RelativePath+"\x00"+deref(r.RemoteIdentity)] = r
+		}
+	case !errors.Is(err, os.ErrNotExist):
+		return nil, err
+	}
+	found, err := Discover(ctx, root, maxDepth, includeNew)
+	if err != nil {
+		return nil, err
+	}
+	for i := range found {
+		r := &found[i]
+		prev, ok := existing[r.RelativePath+"\x00"+deref(r.RemoteIdentity)]
+		switch {
+		case !ok:
+			if includeNew {
+				r.Reason = "auto-discovered"
+			}
+		case includeNew && !prev.Included && prev.Reason == "discovered":
+			// Migrate registries from passive-discovery setups where every repo started disabled.
+			r.Included, r.Reason = true, "auto-discovered"
+		default:
+			r.Included, r.Reason = prev.Included, prev.Reason
+		}
+	}
+	return found, Save(root, found)
+}
+
+// SetIncluded flips inclusion for exactly one repository matched by relative
+// path, repository ID, remote identity, or name (V2 set_repository_included).
+func SetIncluded(root, selector string, included bool) ([]Repository, Repository, error) {
+	selector = strings.TrimSpace(selector)
+	if selector == "" {
+		return nil, Repository{}, errors.New("repository selector must not be blank")
+	}
+	reg, err := Load(root)
+	if err != nil {
+		return nil, Repository{}, err
+	}
+	match := -1
+	for i, r := range reg.Repositories {
+		if selector == r.RelativePath || selector == r.RepositoryID || selector == deref(r.RemoteIdentity) || selector == r.Name {
+			if match >= 0 {
+				return nil, Repository{}, fmt.Errorf("repository selector is ambiguous: %s", selector)
+			}
+			match = i
+		}
+	}
+	if match < 0 {
+		return nil, Repository{}, fmt.Errorf("repository not found: %s", selector)
+	}
+	r := &reg.Repositories[match]
+	r.Included, r.Reason = included, "manual-exclude"
+	if included {
+		r.Reason = "manual-include"
+	}
+	return reg.Repositories, *r, Save(root, reg.Repositories)
+}
+
 // relativePtr returns a pointer to path expressed relative to root, or nil
 // if path is empty or escapes root.
 func relativePtr(path, root string) *string {

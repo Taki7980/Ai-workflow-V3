@@ -25,7 +25,7 @@ func setupWorkspace(t *testing.T) string {
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v %s", err, out)
 	}
-	if code, _, stderr := run(t, root, nil, "setup"); code != 0 {
+	if code, _, stderr := run(t, root, nil, "setup", "--no-crg-sync"); code != 0 {
 		t.Fatalf("setup: %d %s", code, stderr)
 	}
 	return root

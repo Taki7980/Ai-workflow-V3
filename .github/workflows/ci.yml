@@ -37,6 +37,53 @@ jobs:
       - run: go build ./cmd/compat-harness
       - run: go build ./cmd/retrieval-bench
 
+  installer:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "1.27.x"
+          cache: true
+      - name: Build fake release
+        shell: bash
+        env:
+          CGO_ENABLED: "0"
+        run: |
+          mkdir -p rel
+          os="$(go env GOOS)"; arch="$(go env GOARCH)"; ext=""
+          [ "$os" = windows ] && ext=".exe"
+          go build -trimpath -ldflags "-X github.com/Taki7980/ai-workflow-v3/internal/version.Version=9.9.9" \
+            -o "rel/ai-workflow-v9.9.9-${os}-${arch}${ext}" ./cmd/ai-workflow
+          cd rel && (command -v sha256sum >/dev/null && sha256sum ai-workflow-* || shasum -a 256 ai-workflow-*) > SHA256SUMS
+      - name: Serve release on localhost
+        shell: bash
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory rel >/dev/null 2>&1 &
+          sleep 2
+      - name: install.sh
+        if: runner.os != 'Windows'
+        env:
+          AI_WORKFLOW_VERSION: "9.9.9"
+          AI_WORKFLOW_TEST_RELEASE_BASE: http://127.0.0.1:8765
+          AI_WORKFLOW_INSTALL_DIR: ${{ runner.temp }}/aiw
+        run: |
+          sh install.sh
+          test "$("$AI_WORKFLOW_INSTALL_DIR/ai-workflow" version)" = "9.9.9"
+      - name: install.ps1
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          AI_WORKFLOW_VERSION: "9.9.9"
+          AI_WORKFLOW_TEST_RELEASE_BASE: http://127.0.0.1:8765
+          AI_WORKFLOW_INSTALL_DIR: ${{ runner.temp }}\aiw
+        run: |
+          ./install.ps1
+          if ((& "$env:AI_WORKFLOW_INSTALL_DIR\ai-workflow.exe" version) -ne '9.9.9') { exit 1 }
+
   retrieval-benchmark:
     runs-on: ubuntu-latest
     steps:
