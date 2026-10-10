@@ -83,3 +83,44 @@ func TestAnswerBriefDoesNotTraceUnlessAsked(t *testing.T) {
 		t.Fatalf("--trace must journal: %s", out)
 	}
 }
+
+func TestAuthorizeAgainstRecordedPolicy(t *testing.T) {
+	root := setupWorkspace(t)
+	_, out, _ := run(t, root, nil, "brief", "fix RetryPayment retry handling")
+	var p struct {
+		Retrieval struct {
+			RunID  string `json:"run_id"`
+			Policy struct {
+				Schema string `json:"schema"`
+			} `json:"authorization_policy"`
+		} `json:"retrieval"`
+		Context []struct {
+			Evidence struct {
+				EvidenceID string `json:"evidence_id"`
+			} `json:"evidence"`
+		} `json:"context"`
+	}
+	if err := json.Unmarshal([]byte(out), &p); err != nil {
+		t.Fatal(err)
+	}
+	if p.Retrieval.Policy.Schema != "capability-v2" || len(p.Context) == 0 || p.Context[0].Evidence.EvidenceID == "" {
+		t.Fatalf("brief must carry policy and evidence ids: %s", out)
+	}
+	id := p.Retrieval.RunID
+	deny := `{"capability":"provider_selection"}`
+	if code, out, _ := run(t, root, &deny, "authorize", id); code != 1 || !strings.Contains(out, "control_plane_owned_capability") {
+		t.Fatalf("code=%d out=%s", code, out)
+	}
+	unknown := `{"capability":"tool_execution","tool_name":"x","bogus":1}`
+	if code, _, _ := run(t, root, &unknown, "authorize", id); code != 2 {
+		t.Fatal("unknown request fields must be rejected")
+	}
+	jp := filepath.Join(root, "ai-workspace", "generated", "run-journal", id+".json")
+	b, _ := os.ReadFile(jp)
+	if err := os.WriteFile(jp, []byte(strings.Replace(string(b), `"capability-v2"`, `"capability-vX"`, 1)), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, stderr := run(t, root, &deny, "authorize", id); code != 1 || !strings.Contains(stderr, "integrity") {
+		t.Fatalf("tampered journal must be refused: %d %s", code, stderr)
+	}
+}

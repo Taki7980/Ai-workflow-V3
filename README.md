@@ -78,11 +78,39 @@ ai-workflow index [--mode auto|incremental|full]
 ai-workflow stats [--limit 200] [--recommend] [--minimum-runs 20]
 ai-workflow replay RUN_ID [--strict]     # verified decision history; never re-executes anything
 ai-workflow run inspect|verify RUN_ID
+ai-workflow authorize RUN_ID < action.json
 ai-workflow doctor --strict
 ai-workflow version
 ```
 
 Mutation briefs (and any `brief`/`context` with `--trace`) write a privacy-preserving trace under `ai-workspace/generated/traces/` and an immutable hash-chained run journal under `ai-workspace/generated/run-journal/`; the run ID is in `retrieval.run_id`. Traces never contain task text (set `AI_WORKFLOW_TELEMETRY_HMAC_KEY` to add a keyed task fingerprint). `context.telemetry.mode` is `off`, `mutations` (default) or `all`; `retention_days`, `max_trace_files` and `redact_patterns` bound and scrub traces. Optional OTLP export is configured only through `AI_WORKFLOW_OTLP_ENDPOINT` plus an explicit `AI_WORKFLOW_OTLP_ALLOWED_HOSTS` allowlist (HTTPS only, no redirects, no loopback/link-local targets).
+
+### Retrieval providers
+
+- **Semantic** works out of the box through `builtin-local`, a dependency-free hybrid (token + trigram) ranking over indexed symbols that returns fresh source snippets. Set `context.semantic.provider_id` (or `AI_WORKFLOW_SEMANTIC_PROVIDER_ID`) to use a trusted external provider instead, or `context.semantic.mode: "off"` to disable it.
+- **External retrievers** are listed in `context.external_retrievers` (`name`, `provider_id`, `intents`, optional `timeout_seconds` / `max_output_bytes` / `max_results`). They run per routed repository with bounded concurrency; any failure degrades to the remaining evidence and is reported in `retrieval.provider_errors`.
+- Executable authority lives only in the user-owned registry (`AI_WORKFLOW_PROVIDER_REGISTRY`, default `<user config>/ai-workflow/providers.json`):
+
+```json
+{"providers": {"docs-search": {"command": ["/opt/tools/docs-search", "--json"], "sha256": "<sha256 of the executable>",
+  "runtime_profile": "restricted", "sandbox": {"mode": "preferred", "network": "deny"}}}}
+```
+
+  Repository config can select `provider_id` and tighten limits, never supply commands, digests, environment or sandbox policy. See `SECURITY.md`.
+
+### Multi-repository routing
+
+Each task searches a bounded set of repositories: repositories owning the changed files or named in the task are primary, then neighbours from the reviewed `ai-workspace/config/repository-graph.json` (`depends_on`, `publishes_api`, `consumes_schema`, `deploys`) are added, capped by `workspace.max_roots`. With no signal every included repository (up to `max_roots`) is searched. The decision is in `retrieval.repository_routing` and the run journal.
+
+### Gating model actions
+
+Every brief carries a `capability-v2` `retrieval.authorization_policy` and each context item an `evidence-v1` envelope. Hooks can gate a model-proposed action against a recorded run:
+
+```bash
+echo '{"capability":"tool_execution","tool_name":"query_graph_tool","repository_id":"<id>","parameters":{"path":"src/a.go","depth":2}}' | ai-workflow authorize <run-id>      # exit 0 allowed, 1 denied (reason in JSON)
+```
+
+Provider selection, repository activation, network/secret access, lane changes and verification skips are always denied; tools must be on the run's CRG plan, stay inside its repositories, use relative paths and respect its graph depth.
 
 Migrating V2 memory: run `ai-workflow memory export memory.jsonl` with V2, then `ai-workflow memory import memory.jsonl` with V3.
 

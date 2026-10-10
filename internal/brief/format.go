@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/capability"
+
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
@@ -33,24 +35,26 @@ type SelectiveReport struct {
 
 // RetrievalDiagnostics is the agent-facing subset of V2's retrieval packet.
 type RetrievalDiagnostics struct {
-	RetrievalIntent       string            `json:"retrieval_intent"`
-	RetrievalReason       string            `json:"retrieval_reason"`
-	WorkspaceRoots        []string          `json:"workspace_roots"`
-	WorkspaceState        workspace.State   `json:"workspace_state"`
-	EvidenceState         string            `json:"evidence_state"`
-	EvidenceContract      EvidenceContract  `json:"evidence_contract"`
-	Sufficiency           SufficiencyReport `json:"sufficiency"`
-	SelectiveRetrieval    SelectiveReport   `json:"selective_retrieval"`
-	AdaptiveContextTokens int               `json:"adaptive_context_tokens"`
-	HardContextTokens     int               `json:"hard_context_tokens"`
-	ProvidersAttempted    []string          `json:"providers_attempted"`
-	ProvidersSkipped      map[string]string `json:"providers_skipped"`
-	ProviderErrors        map[string]string `json:"provider_errors"`
-	Fallbacks             []string          `json:"fallbacks"`
-	Orchestration         Orchestration     `json:"orchestration"`
-	RunID                 string            `json:"run_id,omitempty"`
-	Trace                 string            `json:"trace,omitempty"`
-	Journal               string            `json:"journal,omitempty"`
+	RetrievalIntent       string               `json:"retrieval_intent"`
+	RetrievalReason       string               `json:"retrieval_reason"`
+	WorkspaceRoots        []string             `json:"workspace_roots"`
+	WorkspaceState        workspace.State      `json:"workspace_state"`
+	EvidenceState         string               `json:"evidence_state"`
+	EvidenceContract      EvidenceContract     `json:"evidence_contract"`
+	Sufficiency           SufficiencyReport    `json:"sufficiency"`
+	SelectiveRetrieval    SelectiveReport      `json:"selective_retrieval"`
+	AdaptiveContextTokens int                  `json:"adaptive_context_tokens"`
+	HardContextTokens     int                  `json:"hard_context_tokens"`
+	ProvidersAttempted    []string             `json:"providers_attempted"`
+	ProvidersSkipped      map[string]string    `json:"providers_skipped"`
+	ProviderErrors        map[string]string    `json:"provider_errors"`
+	Fallbacks             []string             `json:"fallbacks"`
+	Orchestration         Orchestration        `json:"orchestration"`
+	AuthorizationPolicy   *capability.Policy   `json:"authorization_policy,omitempty"`
+	RepositoryRouting     *workspace.RoutePlan `json:"repository_routing,omitempty"`
+	RunID                 string               `json:"run_id,omitempty"`
+	Trace                 string               `json:"trace,omitempty"`
+	Journal               string               `json:"journal,omitempty"`
 }
 
 // Packet is the brief emitted to agents (spec §4.8).

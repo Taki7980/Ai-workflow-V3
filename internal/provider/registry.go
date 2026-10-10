@@ -17,6 +17,10 @@ const (
 	UnsafeRepoCommandEnv = "AI_WORKFLOW_ALLOW_REPO_PROVIDER_COMMANDS"
 )
 
+// UnsafeRepoCommandsEnabled reports the explicit operator opt-in for
+// repository-defined provider commands.
+func UnsafeRepoCommandsEnabled() bool { return truthyEnv(UnsafeRepoCommandEnv) }
+
 func truthyEnv(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
 	case "1", "true", "yes", "on":

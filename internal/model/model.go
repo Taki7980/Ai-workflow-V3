@@ -52,6 +52,9 @@ type ContextItem struct {
 	Stale      bool           `json:"stale"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
 	Provenance map[string]any `json:"provenance,omitempty"`
+	// Evidence is the system-owned identity envelope (evidence-v1); it is set
+	// by the control plane, never parsed from provider output.
+	Evidence *Evidence `json:"evidence,omitempty"`
 }
 
 // DedupeKey returns a SHA-256 hash of the item's text, used to identify and

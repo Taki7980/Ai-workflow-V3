@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/capability"
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/handoff"
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
@@ -127,6 +128,15 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 
 	g := &gathered{}
 	included, indexFiles, indexes, missing := loadIndexes(root, reg)
+	enabled, maxPrimary, maxExpansions, rels := cfg.Workspace.Hierarchical.Resolved()
+	route := workspace.Route(root, reg.Repositories, strings.Join([]string{task, opt.Symbol, opt.Endpoint}, " "), changed, workspace.RouteOptions{
+		Enabled: enabled, MaxPrimary: maxPrimary, MaxExpansions: maxExpansions, Relationships: rels,
+		MaxRoots: cfg.Workspace.MaxRoots, GraphPath: cfg.Workspace.RepositoryGraph,
+	})
+	included = included[:0:0]
+	for _, r := range route.Repositories {
+		included = append(included, r.Repository)
+	}
 	expected := map[string]bool{}
 	roots := []string{}
 	for _, repo := range included {
@@ -151,10 +161,20 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	t = time.Now()
 	gatherMemory(g, root, query, cfg)
 	stage("memory", t)
+	skipped, providerErrors := map[string]string{}, map[string]string{}
+	if plan.UseSemantic {
+		t = time.Now()
+		gatherSemantic(ctx, g, root, query, included, indexes, cfg, changed, skipped, providerErrors)
+		stage("semantic", t)
+	}
+	if len(cfg.Context.ExternalRetrievers) > 0 {
+		t = time.Now()
+		gatherExternal(ctx, g, root, query, string(plan.Intent), included, cfg, changed, providerErrors)
+		stage("external", t)
+	}
 
 	threshold := cfg.Context.Sufficiency.Threshold
 	pre := EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, threshold)
-	skipped, providerErrors := map[string]string{}, map[string]string{}
 	structuralRan := false
 	if plan.UseStructural && !pre.StructuralComplete {
 		t = time.Now()
@@ -169,6 +189,19 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	selected := selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, plan.StructuralPatterns, mandatory)
 	stage("selection", t)
 
+	rootID := workspace.RepositoryID(".", "")
+	for _, r := range reg.Repositories {
+		if r.RelativePath == "." {
+			rootID = r.RepositoryID
+		}
+	}
+	for i := range selected {
+		id, _ := selected[i].Metadata["repository_id"].(string)
+		if id == "" {
+			id = rootID
+		}
+		selected[i].Evidence = model.NewEvidence(selected[i], id)
+	}
 	final := EvaluateSufficiency(task, selected, plan.UseStructural, plan.StructuralPatterns, threshold)
 	sel := cfg.Context.SelectiveRetrieval
 	selective := EvaluateSelective(selected, final, expected, sel.MinimumCoverage)
@@ -177,9 +210,6 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		g.note("structural evidence incomplete; source fallback used")
 	}
 
-	if plan.UseSemantic {
-		skipped["semantic"] = "provider not configured"
-	}
 	if plan.UseStructural && !structuralRan {
 		skipped["structural"] = "no structural provider ran"
 	}
@@ -221,6 +251,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 			ProvidersSkipped:      skipped,
 			ProviderErrors:        providerErrors,
 			Fallbacks:             append([]string{}, g.fallbacks...),
+			RepositoryRouting:     &route,
 			Orchestration:         BuildOrchestration(decision, string(plan.Intent), final.Sufficient, sel.Enabled, selective.Accept, changed, len(included), status, cfg.Execution.OrchestrationBudget),
 		},
 		Context:                    selected,
@@ -228,6 +259,9 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		OutputCompression:          compression,
 		ChangedFilesDetected:       changed,
 	}
+	orch := p.Retrieval.Orchestration
+	policy := capability.Build(decision.Lane, decision.Risk, orch.CRGPlan, orch.VerificationPasses, orch.GraphDepth, orch.Budget.MaxGraphDepth, selected, task)
+	p.Retrieval.AuthorizationPolicy = &policy
 	if opt.Trace || (!opt.ReadOnly && decision.Lane != model.LaneAnswer) {
 		if telemetry.Enabled(cfg, decision.Lane, opt.Trace) {
 			stage("total", began)

@@ -159,7 +159,7 @@ func FuzzParseRecords(f *testing.F) {
 		if err == nil && len(rows) > MaxRecords {
 			t.Fatalf("record limit bypassed: %d", len(rows))
 		}
-		_, _ = contextItems(t.TempDir(), b, "fuzz", 5, Spec{Name: "f", ExecutableTrust: TrustConfigured})
+		_, _ = contextItems(t.TempDir(), b, "fuzz", 5, Spec{Name: "f", ExecutableTrust: TrustConfigured}, nil)
 	})
 }
 

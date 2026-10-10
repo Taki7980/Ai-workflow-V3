@@ -123,6 +123,8 @@ type Request struct {
 	ChangedFiles []string       `json:"changed_files"`
 	Metadata     map[string]any `json:"metadata"`
 	Timeout      time.Duration  `json:"-"`
+	// Defaults are control-plane metadata merged into every returned item.
+	Defaults map[string]any `json:"-"`
 }
 
 // Result separates evidence from provider failure.
@@ -347,7 +349,7 @@ func Run(ctx context.Context, s Spec, req Request, source string) Result {
 	case strings.TrimSpace(string(r.Stdout)) == "":
 		return fail("empty_output", "provider returned an empty payload")
 	}
-	items, err := contextItems(root, r.Stdout, source, req.Limit, s)
+	items, err := contextItems(root, r.Stdout, source, req.Limit, s, req.Defaults)
 	if err != nil {
 		return fail("invalid_payload", err.Error())
 	}
@@ -356,7 +358,7 @@ func Run(ctx context.Context, s Spec, req Request, source string) Result {
 	return res
 }
 
-func contextItems(root string, raw []byte, source string, limit int, s Spec) ([]model.ContextItem, error) {
+func contextItems(root string, raw []byte, source string, limit int, s Spec, defaults map[string]any) ([]model.ContextItem, error) {
 	records, err := parseRecords(raw)
 	if err != nil {
 		return nil, err
@@ -413,6 +415,9 @@ func contextItems(root string, raw []byte, source string, limit int, s Spec) ([]
 		score, err := providerScore(rec["score"])
 		if err != nil {
 			return nil, err
+		}
+		for k, v := range defaults {
+			meta[k] = v
 		}
 		meta["provider"], meta["provider_trust"], meta["trust"] = s.Name, s.ExecutableTrust, "untrusted_repository_content"
 		confinePaths(root, meta)
