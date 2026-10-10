@@ -2,6 +2,7 @@ package brief
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -30,6 +31,11 @@ type Options struct {
 	ReadOnly bool
 	// Trace forces a trace + run journal even for Answer lanes or read-only runs.
 	Trace bool
+	// OnlyRepository restricts retrieval to one registered repository
+	// (benchmark case isolation, V2 _isolated_case_config).
+	OnlyRepository string
+	// BudgetTokens overrides the lane's hard context budget when > 0.
+	BudgetTokens int
 }
 
 // loadIndexes returns the included repositories, their loadable indexes,
@@ -137,6 +143,21 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	for _, r := range route.Repositories {
 		included = append(included, r.Repository)
 	}
+	if opt.OnlyRepository != "" {
+		only := strings.Trim(filepath.ToSlash(opt.OnlyRepository), "/")
+		if only == "" {
+			only = "."
+		}
+		included = included[:0:0]
+		for _, r := range reg.Repositories {
+			if r.Included && r.RelativePath == only {
+				included = append(included, r)
+			}
+		}
+		if len(included) == 0 {
+			return Packet{}, fmt.Errorf("repository_path %q is not an included repository; run `ai-workflow repos refresh` and `repos include`", only)
+		}
+	}
 	expected := map[string]bool{}
 	roots := []string{}
 	for _, repo := range included {
@@ -162,12 +183,18 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	gatherMemory(g, root, query, cfg)
 	stage("memory", t)
 	skipped, providerErrors := map[string]string{}, map[string]string{}
-	if plan.UseSemantic {
+	// V2 early sufficiency gate: specialist providers run only when the base
+	// evidence (index, targeted source, memory) is insufficient.
+	base := EvaluateSufficiency(task, g.items, plan.UseStructural, plan.StructuralPatterns, cfg.Context.Sufficiency.Threshold)
+	switch {
+	case plan.UseSemantic && base.Sufficient:
+		skipped["semantic"] = "base evidence sufficient"
+	case plan.UseSemantic:
 		t = time.Now()
 		gatherSemantic(ctx, g, root, query, included, indexes, cfg, changed, skipped, providerErrors)
 		stage("semantic", t)
 	}
-	if len(cfg.Context.ExternalRetrievers) > 0 {
+	if len(cfg.Context.ExternalRetrievers) > 0 && !base.Sufficient {
 		t = time.Now()
 		gatherExternal(ctx, g, root, query, string(plan.Intent), included, cfg, changed, providerErrors)
 		stage("external", t)
@@ -183,10 +210,14 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		stage("structural", t)
 	}
 	budget := laneBudget(cfg, decision.Lane)
+	if opt.BudgetTokens > 0 {
+		budget.EstimatedTokens = opt.BudgetTokens
+	}
 	limit := adaptiveTokens(budget.EstimatedTokens, pre.Score, cfg.Context.AdaptiveBudget)
 	mandatory := plan.UseStructural && cfg.Context.Selector.MandatoryStructuralEvidence
 	t = time.Now()
-	selected := selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, plan.StructuralPatterns, mandatory)
+	selected := capBySource(selectItems(g, limit, cfg.Context.Selector.MaxSelectorCandidates, plan.StructuralPatterns, mandatory),
+		budget.EstimatedTokens, cfg.Context.SourceShares, cfg.Context.MaxResultsPerSource, plan.StructuralPatterns, mandatory)
 	stage("selection", t)
 
 	rootID := workspace.RepositoryID(".", "")
@@ -258,6 +289,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		EstimatedContextTokensUsed: estimateTokens(strings.Join(texts, "\n")),
 		OutputCompression:          compression,
 		ChangedFilesDetected:       changed,
+		Candidates:                 g.items,
 	}
 	orch := p.Retrieval.Orchestration
 	policy := capability.Build(decision.Lane, decision.Risk, orch.CRGPlan, orch.VerificationPasses, orch.GraphDepth, orch.Budget.MaxGraphDepth, selected, task)
@@ -290,6 +322,39 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 
 // selectItems applies MMR within the token limit, falling back to
 // relevance-order truncation if the selector rejects the candidate set.
+// shareKey maps an evidence source to its context.source_shares bucket.
+var shareKey = map[string]string{"lightweight_index": "lightweight", "targeted_source": "source_fallback",
+	"code_review_graph": "crg", "scip": "crg", "durable_memory": "hot_cache"}
+
+// capBySource enforces V2 per-source budget shares (budget ceilings, not
+// targets): each bucket may use at most max(40, share * hard budget) tokens
+// and maxItems items (V2 max_results_per_source). Mandatory structural
+// evidence and unbucketed sources are not capped.
+func capBySource(items []model.ContextItem, hardTokens int, shares map[string]float64, maxItems int, patterns []string, mandatory bool) []model.ContextItem {
+	if len(shares) == 0 {
+		return items
+	}
+	used, count := map[string]int{}, map[string]int{}
+	out := items[:0:0]
+	for _, it := range items {
+		key, ok := shareKey[it.Source]
+		share, hasShare := shares[key]
+		if !ok || !hasShare || (mandatory && requiredStructural(it, patterns)) {
+			out = append(out, it)
+			continue
+		}
+		limit := max(40, int(float64(hardTokens)*share))
+		cost := estimateTokens(it.Text)
+		if (used[key]+cost > limit && used[key] > 0) || (maxItems > 0 && count[key] >= maxItems) {
+			continue
+		}
+		used[key] += cost
+		count[key]++
+		out = append(out, it)
+	}
+	return out
+}
+
 func selectItems(g *gathered, limit, maxCandidates int, patterns []string, mandatory bool) []model.ContextItem {
 	candidates := make([]retrieval.Candidate[model.ContextItem], 0, len(g.items))
 	for _, it := range g.items {

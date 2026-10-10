@@ -84,6 +84,10 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return replayCmd(root, args[1:], out, errOut)
 	case "run":
 		return runCmd(root, args[1:], out, errOut)
+	case "benchmark":
+		return benchmarkCmd(root, args[1:], out, errOut)
+	case "benchmark-corpus":
+		return benchmarkCorpusCmd(root, args[1:], out, errOut)
 	case "authorize":
 		return authorizeCmd(root, args[1:], in, out, errOut)
 	case "graph", "scip":
@@ -138,6 +142,8 @@ Commands:
   stats [--recommend]        summarize local retrieval traces (advisory feedback only)
   replay RUN_ID [--strict]   verify and reconstruct a recorded run without executing anything
   run inspect|verify RUN_ID  print a run journal / check it against the current workspace
+  benchmark --tasks FILE     score routing + context on gold-labelled cases (--research-protocol, --require-frozen-snapshot)
+  benchmark-corpus validate|integrity|snapshot   corpus-v2 checks (--input, --require-ready, --fail-on-signals)
   authorize RUN_ID           gate a model-proposed action (JSON on stdin) against the run's capability policy
   repos list|refresh|include|exclude  manage the repository registry
   index                      rebuild indexes (--mode auto|incremental|full, --incremental)
