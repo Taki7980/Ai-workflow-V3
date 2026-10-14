@@ -52,6 +52,7 @@ type RetrievalDiagnostics struct {
 	Orchestration         Orchestration        `json:"orchestration"`
 	AuthorizationPolicy   *capability.Policy   `json:"authorization_policy,omitempty"`
 	RepositoryRouting     *workspace.RoutePlan `json:"repository_routing,omitempty"`
+	Learning              map[string]any       `json:"learning,omitempty"`
 	RunID                 string               `json:"run_id,omitempty"`
 	Trace                 string               `json:"trace,omitempty"`
 	Journal               string               `json:"journal,omitempty"`

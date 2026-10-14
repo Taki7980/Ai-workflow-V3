@@ -12,6 +12,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/handoff"
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
+	"github.com/Taki7980/ai-workflow-v3/internal/learning"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
 	"github.com/Taki7980/ai-workflow-v3/internal/providers"
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
@@ -177,6 +178,16 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		latency[name] = float64(time.Since(start).Microseconds()) / 1000
 	}
 	began := time.Now()
+	// Stage 5 learning: the arm is chosen and logged before retrieval runs.
+	var learned *learning.Decision
+	learnPath := ""
+	if cfg.Context.Learning.ModeOf() != "off" && (!opt.ReadOnly || opt.Trace) {
+		dec, path := learning.Prepare(root, cfg.Context.Learning, task, decision, string(plan.Intent), len(changed), len(included), nil)
+		if armCfg, err := learning.ApplyArm(cfg, dec.ChosenArm); err == nil {
+			cfg = armCfg
+		}
+		learned, learnPath = &dec, path
+	}
 	query := strings.TrimSpace(strings.Join([]string{task, opt.Symbol, opt.Endpoint}, " "))
 	t := time.Now()
 	gatherIndex(g, root, query, included, indexes, cfg)
@@ -298,6 +309,20 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		OutputCompression:          compression,
 		ChangedFilesDetected:       changed,
 		Candidates:                 g.items,
+	}
+	if learned != nil {
+		info := map[string]any{"decision_id": learned.DecisionID, "mode": learned.Mode, "chosen_arm": learned.ChosenArm,
+			"explored": learned.Explored, "safety_reason": learned.SafetyReason, "decision_logged": learnPath != "", "observation_logged": false}
+		if learnPath != "" {
+			used := 0
+			for _, it := range selected {
+				used += len(it.Text)
+			}
+			if _, err := learning.Observe(root, learned.DecisionID, float64(time.Since(began).Microseconds())/1000, used, len(g.fallbacks), final.Score, state); err == nil {
+				info["observation_logged"] = true
+			}
+		}
+		p.Retrieval.Learning = info
 	}
 	orch := p.Retrieval.Orchestration
 	policy := capability.Build(decision.Lane, decision.Risk, orch.CRGPlan, orch.VerificationPasses, orch.GraphDepth, orch.Budget.MaxGraphDepth, selected, task)
