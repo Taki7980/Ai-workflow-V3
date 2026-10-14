@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -107,6 +108,11 @@ func diffs(path string, a, b any, out *[]string) {
 		}
 		for i := range x {
 			diffs(fmt.Sprintf("%s[%d]", path, i), x[i], y[i], out)
+		}
+	case float64:
+		y, ok := b.(float64)
+		if !ok || math.Abs(x-y) > 1e-9 {
+			*out = append(*out, fmt.Sprintf("%s: V2 %v != V3 %v", path, a, b))
 		}
 	default:
 		if !reflect.DeepEqual(a, b) {
