@@ -149,6 +149,7 @@ jobs:
           AI_WORKFLOW_INSTALL_DIR: ${{ runner.temp }}\aiw
         run: |
           ./install.ps1
+          ./install.ps1  # upgrade over an existing binary
           if ((& "$env:AI_WORKFLOW_INSTALL_DIR\ai-workflow.exe" version) -ne '9.9.9') { exit 1 }
 
   retrieval-benchmark:

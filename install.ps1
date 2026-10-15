@@ -36,7 +36,14 @@ try {
     if ($expected -ne $actual) { throw "SHA-256 verification failed for $asset" }
 
     New-Item -ItemType Directory -Force -Path $installDir | Out-Null
-    Move-Item -Force (Join-Path $tmp $asset) (Join-Path $installDir 'ai-workflow.exe')
+    $target = Join-Path $installDir 'ai-workflow.exe'
+    # A running exe (e.g. an agent's MCP server) cannot be overwritten on Windows, but it can be renamed.
+    if (Test-Path $target) {
+        Remove-Item -Force "$target.old" -ErrorAction SilentlyContinue
+        if (Test-Path "$target.old") { throw "Close running ai-workflow processes and retry ($target.old is in use)" }
+        Rename-Item $target 'ai-workflow.exe.old'
+    }
+    Move-Item -Force (Join-Path $tmp $asset) $target
 } finally {
     Remove-Item -Recurse -Force $tmp
 }
