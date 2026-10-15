@@ -9,11 +9,12 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 )
 
 // ChangedFile is one changed-file identity inside a workspace fingerprint.
@@ -157,11 +158,8 @@ func GitStatus(ctx context.Context, dir string) []string {
 // GitStatusErr is GitStatus that reports a failed or timed-out git run, so
 // callers relying on "no changes" can fail closed.
 func GitStatusErr(ctx context.Context, dir string) ([]string, error) {
-	cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(cctx, "git", "status", "--porcelain=v1", "-z", "--untracked-files=all")
-	cmd.Dir = dir
-	raw, err := cmd.Output() // untrimmed: the leading status column is significant
+	raw, err := procx.Output(ctx, procx.Cmd{Argv: []string{"git", "status", "--porcelain=v1", "-z", "--untracked-files=all"},
+		Dir: dir, Env: procx.InheritEnv(), Timeout: 4 * time.Second, MaxStdout: 64 << 20}) // untrimmed: the leading status column is significant
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +183,23 @@ func GitStatusErr(ctx context.Context, dir string) ([]string, error) {
 	return out, nil
 }
 
+// resolveExisting follows symlinks in the longest existing prefix of p, so a
+// not-yet-created file below a symlinked directory cannot escape the root.
+func resolveExisting(p string) string {
+	rest := ""
+	for cur := p; ; {
+		if resolved, err := filepath.EvalSymlinks(cur); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(cur)
+		if parent == cur {
+			return p
+		}
+		rest = filepath.Join(filepath.Base(cur), rest)
+		cur = parent
+	}
+}
+
 // Within resolves raw (relative or absolute) against root, following symlinks,
 // and rejects any path that escapes the root. rel is slash-separated.
 func Within(root, raw string) (rel, abs string, err error) {
@@ -199,9 +214,7 @@ func Within(root, raw string) (rel, abs string, err error) {
 	if !filepath.IsAbs(abs) {
 		abs = filepath.Join(rootAbs, filepath.FromSlash(raw))
 	}
-	if resolved, e := filepath.EvalSymlinks(abs); e == nil {
-		abs = resolved
-	}
+	abs = resolveExisting(filepath.Clean(abs))
 	rel, err = filepath.Rel(rootAbs, abs)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
 		return "", "", errors.New("outside workspace")

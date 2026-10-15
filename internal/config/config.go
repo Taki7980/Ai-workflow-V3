@@ -2,11 +2,16 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 )
 
 const (
@@ -67,8 +72,158 @@ type Context struct {
 	Selector            Selector           `json:"selector"`
 	SelectiveRetrieval  SelectiveRetrieval `json:"selective_retrieval"`
 	SCIP                SCIP               `json:"scip"`
+	Telemetry           Telemetry          `json:"telemetry"`
+	Semantic            Semantic           `json:"semantic"`
+	ExternalRetrievers  []json.RawMessage  `json:"external_retrievers"`
+	// Experiments are benchmark-only algorithm switches (V2 context.experiments).
+	Experiments *Experiments `json:"experiments,omitempty"`
+	Learning    Learning     `json:"learning"`
 	// SnippetLines is V3-only; omitempty keeps it out of the frozen V2 document.
 	SnippetLines int `json:"snippet_lines,omitempty"`
+}
+
+// LearningKillSwitchEnv forces the learning layer back to the baseline.
+const LearningKillSwitchEnv = "AI_WORKFLOW_LEARNING_KILL_SWITCH"
+
+// Learning is context.learning (V2 Stage 5 safe retrieval learning).
+type Learning struct {
+	Mode                   string   `json:"mode"`
+	KillSwitch             bool     `json:"kill_switch"`
+	ExplorationProbability *float64 `json:"exploration_probability,omitempty"`
+	AllowedRisks           []string `json:"allowed_risks,omitempty"`
+	EligibleArms           []string `json:"eligible_arms,omitempty"`
+}
+
+// ModeOf normalizes the configured mode (unknown -> off).
+func (c Learning) ModeOf() string {
+	switch m := strings.ToLower(strings.TrimSpace(c.Mode)); m {
+	case "observe", "explore":
+		return m
+	}
+	return "off"
+}
+
+// KillSwitchOn reports the env or config emergency switch.
+func (c Learning) KillSwitchOn() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(LearningKillSwitchEnv))) {
+	case "1", "true", "yes", "on":
+		return true
+	}
+	return c.KillSwitch
+}
+
+// Epsilon is the bounded exploration probability (default 0.05).
+func (c Learning) Epsilon() float64 {
+	if c.ExplorationProbability == nil || math.IsNaN(*c.ExplorationProbability) || math.IsInf(*c.ExplorationProbability, 0) {
+		return .05
+	}
+	return math.Min(1, math.Max(0, *c.ExplorationProbability))
+}
+
+// Arms filters eligible arms to the safe set, always including the baseline.
+func (c Learning) Arms(safe []string, baseline string) []string {
+	raw := c.EligibleArms
+	if raw == nil {
+		raw = safe
+	}
+	out := []string{}
+	for _, a := range raw {
+		if a = strings.TrimSpace(a); slices.Contains(safe, a) && !slices.Contains(out, a) {
+			out = append(out, a)
+		}
+	}
+	if !slices.Contains(out, baseline) {
+		out = append([]string{baseline}, out...)
+	}
+	return out
+}
+
+// LowAllowed reports whether low-risk exploration is permitted (only low ever is).
+func (c Learning) LowAllowed() bool {
+	raw := c.AllowedRisks
+	if raw == nil {
+		return true
+	}
+	for _, r := range raw {
+		if strings.ToLower(strings.TrimSpace(r)) == "low" {
+			return true
+		}
+	}
+	return false
+}
+
+// Experiments selects alternative ranking/selection algorithms for ablations.
+type Experiments struct {
+	HybridRanker                string   `json:"hybrid_ranker,omitempty"` // adaptive | source | bm25 | rrf | rrf_mmr
+	RRFK                        int      `json:"rrf_k,omitempty"`
+	MMRLambda                   *float64 `json:"mmr_lambda,omitempty"`
+	DisableEarlySufficiencyGate bool     `json:"disable_early_sufficiency_gate,omitempty"`
+}
+
+// Policy returns the normalized algorithm policy (V2 _algorithm_policy).
+func (e *Experiments) Policy() (ranker string, rrfK int, lambda float64, noEarlyStop bool) {
+	ranker, rrfK, lambda = "adaptive", 60, .75
+	if e == nil {
+		return ranker, rrfK, lambda, false
+	}
+	switch r := strings.ToLower(strings.TrimSpace(e.HybridRanker)); r {
+	case "source", "bm25", "rrf", "rrf_mmr":
+		ranker = r
+	}
+	if e.RRFK > 0 {
+		rrfK = e.RRFK
+	}
+	if e.MMRLambda != nil {
+		lambda = min(1, max(0, *e.MMRLambda))
+	}
+	return ranker, rrfK, lambda, e.DisableEarlySufficiencyGate
+}
+
+// BuiltinSemanticProvider is the dependency-free local hybrid retriever.
+const BuiltinSemanticProvider = "builtin-local"
+
+// Semantic configures semantic retrieval (V2 context.semantic). Executable
+// authority never comes from here: provider_id resolves through the trusted
+// registry, and Command is honoured only with an explicit operator opt-in.
+type Semantic struct {
+	Mode           string          `json:"mode"` // auto | off
+	ProviderID     string          `json:"provider_id"`
+	Command        json.RawMessage `json:"command,omitempty"`
+	MaxResults     int             `json:"max_results"`
+	TimeoutSeconds float64         `json:"timeout_seconds,omitempty"`
+	MaxOutputBytes int64           `json:"max_output_bytes,omitempty"`
+}
+
+// HasCommand reports a configured (string or argv) semantic command.
+func (s Semantic) HasCommand() bool {
+	c := strings.TrimSpace(string(s.Command))
+	return c != "" && c != `""` && c != "[]" && c != "null" || strings.TrimSpace(os.Getenv("AI_WORKFLOW_SEMANTIC_CMD")) != ""
+}
+
+// SemanticProviderID returns the active semantic provider ID ("" = none or
+// an explicit command), following V2 configured_provider_id.
+func (s Semantic) SemanticProviderID() string {
+	if strings.EqualFold(s.Mode, "off") {
+		return ""
+	}
+	if env := strings.TrimSpace(os.Getenv("AI_WORKFLOW_SEMANTIC_PROVIDER_ID")); env != "" {
+		return env
+	}
+	if id := strings.TrimSpace(s.ProviderID); id != "" {
+		return id
+	}
+	if s.HasCommand() {
+		return "" // an explicit command keeps its own (opt-in) security semantics
+	}
+	return BuiltinSemanticProvider
+}
+
+// Telemetry controls local retrieval traces (V2 context.telemetry).
+type Telemetry struct {
+	Mode           string   `json:"mode"` // off | mutations | all
+	RetentionDays  *int     `json:"retention_days,omitempty"`
+	MaxTraceFiles  int      `json:"max_trace_files,omitempty"`
+	RedactPatterns []string `json:"redact_patterns,omitempty"`
 }
 
 // SCIP gates SCIP index use: auto, on or off.
@@ -101,6 +256,34 @@ type Workspace struct {
 	Registry        string    `json:"registry"`
 	RepositoryGraph string    `json:"repository_graph"`
 	Discovery       Discovery `json:"discovery"`
+	// Hierarchical is V2 workspace.hierarchical_retrieval; absent fields take V2 defaults.
+	Hierarchical HierarchicalRetrieval `json:"hierarchical_retrieval"`
+}
+
+// HierarchicalRetrieval bounds which repositories a task searches.
+type HierarchicalRetrieval struct {
+	Enabled                *bool    `json:"enabled,omitempty"`
+	MaxPrimaryRepositories int      `json:"max_primary_repositories,omitempty"`
+	MaxGraphExpansions     *int     `json:"max_graph_expansions,omitempty"`
+	Relationships          []string `json:"relationships,omitempty"`
+}
+
+// Resolved returns enabled, max primary, max expansions and relationships with V2 defaults.
+func (h HierarchicalRetrieval) Resolved() (bool, int, int, []string) {
+	enabled, primary, expansions, rels := true, 2, 2, h.Relationships
+	if h.Enabled != nil {
+		enabled = *h.Enabled
+	}
+	if h.MaxPrimaryRepositories > 0 {
+		primary = h.MaxPrimaryRepositories
+	}
+	if h.MaxGraphExpansions != nil {
+		expansions = max(0, *h.MaxGraphExpansions)
+	}
+	if rels == nil {
+		rels = []string{"depends_on", "publishes_api", "consumes_schema", "deploys"}
+	}
+	return enabled, primary, expansions, rels
 }
 
 type OrchestrationBudget struct {
@@ -173,6 +356,8 @@ func Default() Config {
 			Selector:            Selector{Enabled: true, TightBudgetFraction: .30, MandatoryStructuralEvidence: true, MaxSelectorCandidates: 200},
 			SelectiveRetrieval:  SelectiveRetrieval{Enabled: true, MinimumCoverage: .15},
 			SCIP:                SCIP{Mode: "auto"},
+			Telemetry:           Telemetry{Mode: "mutations"},
+			Semantic:            Semantic{Mode: "auto", ProviderID: BuiltinSemanticProvider, MaxResults: 6},
 		},
 		Workspace: Workspace{Roots: []string{}, MaxRoots: 4, Registry: "ai-workspace/config/repositories.json", RepositoryGraph: "ai-workspace/config/repository-graph.json", Discovery: Discovery{MaxDepth: 8, RequireAcceptance: false, AutoIncludeOnSetup: true}},
 		Execution: Execution{
@@ -180,9 +365,9 @@ func Default() Config {
 			Superpowers:         Superpowers{Mode: "auto"},
 			OrchestrationBudget: OrchestrationBudget{MaxAgentSlots: 4, MaxCRGCalls: 6, MaxGraphDepth: 3, ReviewPasses: 2, VerificationPasses: 2},
 		},
-		Handoff:   Handoff{MaxLines: 30},
-		Memory:    Memory{MaxResults: 5, MinimumConfidence: .55},
-		Models:    Models{Answer: "fast", Small: "fast", FullMedium: "standard", FullHigh: "capable"},
+		Handoff: Handoff{MaxLines: 30},
+		Memory:  Memory{MaxResults: 5, MinimumConfidence: .55},
+		Models:  Models{Answer: "fast", Small: "fast", FullMedium: "standard", FullHigh: "capable"},
 	}
 }
 
@@ -232,10 +417,31 @@ func (c Config) Validate() error {
 	if c.Context.Selector.MaxSelectorCandidates <= 0 {
 		return fmt.Errorf("context.selector.max_selector_candidates must be positive")
 	}
+	switch c.Context.Telemetry.Mode {
+	case "", "off", "mutations", "all":
+	default:
+		return fmt.Errorf("context.telemetry.mode must be off, mutations, or all")
+	}
 	if c.Budgets.Answer.EstimatedTokens <= 0 || c.Budgets.Small.EstimatedTokens <= 0 || c.Budgets.Full.EstimatedTokens <= 0 {
 		return fmt.Errorf("budgets must be positive")
 	}
 	return nil
+}
+
+// Digest is the SHA-256 of the raw config document in canonical JSON, used to
+// bind traces and run journals to the exact configuration (V2 config_digest).
+func Digest(root string) string {
+	var doc any = DefaultDocument()
+	if b, err := os.ReadFile(Path(root)); err == nil {
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.UseNumber()
+		if dec.Decode(&doc) != nil {
+			doc = map[string]any{"invalid": true}
+		}
+	}
+	b, _ := json.Marshal(doc) // encoding/json sorts map keys
+	sum := sha256.Sum256(b)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 // DefaultDocument returns the V2-compatible configuration document used when

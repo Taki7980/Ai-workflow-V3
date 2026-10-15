@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
@@ -91,11 +91,7 @@ func hashFile(p string) (string, error) {
 }
 
 func gitHead(ctx context.Context, dir string) *string {
-	cctx, cancel := context.WithTimeout(ctx, 4*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(cctx, "git", "rev-parse", "HEAD")
-	cmd.Dir = dir
-	out, err := cmd.Output()
+	out, err := procx.Output(ctx, procx.Cmd{Argv: []string{"git", "rev-parse", "HEAD"}, Dir: dir, Env: procx.InheritEnv(), Timeout: 4 * time.Second, MaxStdout: 4096})
 	if err != nil {
 		return nil
 	}

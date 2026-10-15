@@ -13,6 +13,7 @@ import (
 
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
+	"github.com/Taki7980/ai-workflow-v3/internal/provider"
 	"github.com/Taki7980/ai-workflow-v3/internal/structural"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
@@ -43,6 +44,9 @@ func Detect(root string, cfg config.Config, reg workspace.Registry) Status {
 		RTK:             found("rtk"),
 		SCIP:            modeOr(cfg.Context.SCIP.Mode, func() bool { return hasSCIP(root, reg) }),
 		Ripgrep:         found("rg"),
+		// V2 semantic_ready: an active provider ID (builtin-local by default) or an opted-in command.
+		Semantic: cfg.Context.Semantic.SemanticProviderID() != "" ||
+			(cfg.Context.Semantic.HasCommand() && provider.UnsafeRepoCommandsEnabled()),
 	}
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/doctor"
 	"github.com/Taki7980/ai-workflow-v3/internal/indexer"
+	"github.com/Taki7980/ai-workflow-v3/internal/provider"
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/routing"
 	setuppkg "github.com/Taki7980/ai-workflow-v3/internal/setup"
@@ -30,6 +31,11 @@ func Run(args []string, out, errOut io.Writer) int {
 
 // RunWithStdin is Run with an explicit stdin for commands that read input.
 func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
+	// Internal rlimit exec wrapper used inside the sandbox; its argv is the
+	// provider's, so it must bypass --root extraction.
+	if len(args) > 0 && args[0] == provider.ExecWrapperCommand {
+		return provider.ExecWithLimits(args[1:], errOut)
+	}
 	root, args, err := extractRoot(args)
 	if err != nil {
 		fmt.Fprintln(errOut, err)
@@ -72,6 +78,22 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return compressCmd(args[1:], in, out, errOut)
 	case "memory":
 		return memoryCmd(root, args[1:], out, errOut)
+	case "stats":
+		return statsCmd(root, args[1:], out, errOut)
+	case "replay":
+		return replayCmd(root, args[1:], out, errOut)
+	case "run":
+		return runCmd(root, args[1:], out, errOut)
+	case "benchmark":
+		return benchmarkCmd(root, args[1:], out, errOut)
+	case "benchmark-corpus":
+		return benchmarkCorpusCmd(root, args[1:], out, errOut)
+	case "benchmark-ablate", "benchmark-algorithms", "benchmark-intervene", "benchmark-statistics", "benchmark-calibrate", "benchmark-policy-advisor":
+		return researchCmd(args[0], root, args[1:], out, errOut)
+	case "learning":
+		return learningCmd(root, args[1:], out, errOut)
+	case "authorize":
+		return authorizeCmd(root, args[1:], in, out, errOut)
 	case "graph", "scip":
 		return structuralCmd(args[0], root, args[1:], out, errOut)
 	default:
@@ -121,6 +143,17 @@ Commands:
   memory SUBCOMMAND          add|search|list|prune|export|import durable memory
   graph sync|status          build/refresh code-review-graph state (--repo, --timeout)
   scip sync|status           build/refresh SCIP indexes (--repo, --language, --timeout)
+  stats [--recommend]        summarize local retrieval traces (advisory feedback only)
+  replay RUN_ID [--strict]   verify and reconstruct a recorded run without executing anything
+  run inspect|verify RUN_ID  print a run journal / check it against the current workspace
+  benchmark --tasks FILE     score routing + context on gold-labelled cases (--research-protocol, --require-frozen-snapshot)
+  benchmark-corpus validate|integrity|snapshot   corpus-v2 checks (--input, --require-ready, --fail-on-signals)
+  benchmark-ablate|benchmark-algorithms --tasks F [--profile P]   compare provider families / ranking algorithms
+  benchmark-intervene --tasks F [--mode M] [--runner-command EXE]  seed interventions (optionally run an agent runner)
+  benchmark-statistics|benchmark-calibrate|benchmark-policy-advisor --input REPORT   advisory statistics
+  learning status|record-outcome|evaluate|contextual-policy|create-manifest|verify-manifest|shadow-evaluate
+                             opt-in safe retrieval learning (context.learning.mode: off|observe|explore)
+  authorize RUN_ID           gate a model-proposed action (JSON on stdin) against the run's capability policy
   repos list|refresh|include|exclude  manage the repository registry
   index                      rebuild indexes (--mode auto|incremental|full, --incremental)
   doctor [--strict]          validate the environment

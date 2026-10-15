@@ -9,12 +9,12 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 )
 
@@ -214,11 +214,7 @@ func metadata(ctx context.Context, repoRoot, controlRoot string, include bool) R
 // gitText runs a git command with the given args in root, bounded by a
 // timeout, and returns its trimmed stdout output.
 func gitText(parent context.Context, root string, args ...string) (string, error) {
-	ctx, cancel := context.WithTimeout(parent, 3*time.Second)
-	defer cancel()
-	cmd := exec.CommandContext(ctx, "git", args...)
-	cmd.Dir = root
-	b, err := cmd.Output()
+	b, err := procx.Output(parent, procx.Cmd{Argv: append([]string{"git"}, args...), Dir: root, Env: procx.InheritEnv(), Timeout: 3 * time.Second, MaxStdout: 1 << 20})
 	if err != nil {
 		return "", err
 	}
