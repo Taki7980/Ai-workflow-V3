@@ -118,12 +118,18 @@ func freshLines(root, repo, rel, want string) []string {
 
 var identRE = regexp.MustCompile(`[A-Za-z_][A-Za-z0-9_]*`)
 
-// searchTerm picks the longest identifier in query (first wins on ties).
+// codeShaped matches words that look like code identifiers rather than prose:
+// a digit, an underscore, or an upper-case letter after the first character.
+var codeShaped = regexp.MustCompile(`^.+[A-Z0-9_]|_`)
+
+// searchTerm picks the longest code-shaped identifier in query, else the
+// longest word (first wins on ties). "fix BM25 ranking" greps BM25, not ranking.
 func searchTerm(query string) string {
-	best := ""
+	best, bestCode := "", false
 	for _, w := range identRE.FindAllString(query, -1) {
-		if len(w) > len(best) {
-			best = w
+		code := codeShaped.MatchString(w)
+		if code && !bestCode || code == bestCode && len(w) > len(best) {
+			best, bestCode = w, code
 		}
 	}
 	if len(best) < 3 {
@@ -133,8 +139,9 @@ func searchTerm(query string) string {
 }
 
 // gatherTargeted adds targeted_source line matches via ripgrep, or a bounded
-// scan of indexed files when ripgrep is unavailable or fails.
-func gatherTargeted(ctx context.Context, g *gathered, root, query string, repos []workspace.Repository, indexes map[string]indexer.Index, limit int) {
+// scan of indexed files when ripgrep is unavailable or fails. Matches inside
+// an already gathered index window of snippet lines are dropped.
+func gatherTargeted(ctx context.Context, g *gathered, root, query string, repos []workspace.Repository, indexes map[string]indexer.Index, limit, snippet int) {
 	term := searchTerm(query)
 	if term == "" || limit <= 0 {
 		return
@@ -145,15 +152,74 @@ func gatherTargeted(ctx context.Context, g *gathered, root, query string, repos 
 		rels = append(rels, r.RelativePath)
 	}
 	if rg, err := rgPath(); err == nil {
-		if lines, err := ripgrep(ctx, rg, root, term, rels, limit); err == nil {
-			addTargeted(g, lines)
+		// Over-fetch so code matches can outrank the path-sorted docs and
+		// READMEs that otherwise fill every slot.
+		if lines, err := ripgrep(ctx, rg, root, term, rels, limit*targetedOverfetch); err == nil {
+			addTargeted(g, codeFirst(uncovered(lines, g.items, snippet), indexes, limit))
 			return
 		}
 		g.note("ripgrep failed; file scan used")
 	} else {
 		g.note("ripgrep unavailable; file scan used")
 	}
-	addTargeted(g, scan(root, term, rels, indexes, limit))
+	addTargeted(g, codeFirst(uncovered(scan(root, term, rels, indexes, limit*targetedOverfetch), g.items, snippet), indexes, limit))
+}
+
+// uncovered drops "path:line: text" matches that sit inside a lightweight_index
+// source window, which already shows that code (object-level dedupe, after
+// VITAL-RAG, arXiv 2607.26937).
+func uncovered(lines []string, items []model.ContextItem, snippet int) []string {
+	windows := map[string][][2]int{}
+	for _, it := range items {
+		if it.Source != "lightweight_index" {
+			continue
+		}
+		repo, _ := it.Metadata["repository"].(string)
+		path, _ := it.Metadata["path"].(string)
+		line, _ := it.Metadata["line"].(int)
+		key := prefix(repo, path)
+		windows[key] = append(windows[key], [2]int{line - snippet, line + snippet})
+	}
+	out := lines[:0:0]
+	for _, l := range lines {
+		parts := strings.SplitN(l, ":", 3)
+		n, err := strconv.Atoi(parts[min(1, len(parts)-1)])
+		covered := false
+		if err == nil {
+			for _, w := range windows[parts[0]] {
+				covered = covered || w[0] <= n && n <= w[1]
+			}
+		}
+		if !covered {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+// targetedOverfetch is how many ripgrep matches per slot codeFirst ranks.
+const targetedOverfetch = 4
+
+// codeFirst stably moves matches in indexed source files ahead of other files
+// (docs, config) and keeps the first limit.
+func codeFirst(lines []string, indexes map[string]indexer.Index, limit int) []string {
+	code := map[string]bool{}
+	for repo, idx := range indexes {
+		for rel := range idx.Files {
+			code[prefix(repo, rel)] = true
+		}
+	}
+	slices.SortStableFunc(lines, func(a, b string) int {
+		ca, cb := code[strings.SplitN(a, ":", 2)[0]], code[strings.SplitN(b, ":", 2)[0]]
+		switch {
+		case ca == cb:
+			return 0
+		case ca:
+			return -1
+		}
+		return 1
+	})
+	return lines[:min(limit, len(lines))]
 }
 
 func addTargeted(g *gathered, lines []string) {

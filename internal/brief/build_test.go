@@ -204,7 +204,8 @@ func TestBriefMissingIndexDegrades(t *testing.T) {
 }
 
 func TestBriefTargetedSourceFallback(t *testing.T) {
-	root := newWorkspace(t, map[string]string{"pay.go": payGo})
+	// retry.go has no symbols, so its match is not covered by an index window.
+	root := newWorkspace(t, map[string]string{"pay.go": payGo, "retry.go": "package pay\n\n// callers use RetryPayment\nvar attempts = 3\n"})
 	old := rgPath
 	rgPath = func() (string, error) { return "", errors.New("missing") }
 	t.Cleanup(func() { rgPath = old })
@@ -213,8 +214,13 @@ func TestBriefTargetedSourceFallback(t *testing.T) {
 		t.Fatal(err)
 	}
 	text, ok := firstSource(p, "targeted_source")
-	if !ok || !strings.HasPrefix(text, "pay.go:") {
+	if !ok || !strings.HasPrefix(text, "retry.go:") {
 		t.Fatalf("targeted = %q context %+v", text, p.Context)
+	}
+	for _, it := range p.Context {
+		if it.Source == "targeted_source" && strings.HasPrefix(it.Text, "pay.go:") {
+			t.Fatalf("match inside the RetryPayment index window was not deduped: %q", it.Text)
+		}
 	}
 	if !slices.Contains(p.Retrieval.Fallbacks, "ripgrep unavailable; file scan used") {
 		t.Fatalf("fallbacks %q", p.Retrieval.Fallbacks)
