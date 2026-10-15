@@ -94,6 +94,8 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 		return learningCmd(root, args[1:], out, errOut)
 	case "authorize":
 		return authorizeCmd(root, args[1:], in, out, errOut)
+	case "mcp":
+		return mcpCmd(root, args[1:], in, out, errOut)
 	case "graph", "scip":
 		return structuralCmd(args[0], root, args[1:], out, errOut)
 	default:
@@ -156,6 +158,7 @@ Commands:
   authorize RUN_ID           gate a model-proposed action (JSON on stdin) against the run's capability policy
   repos list|refresh|include|exclude  manage the repository registry
   index                      rebuild indexes (--mode auto|incremental|full, --incremental)
+  mcp                        serve brief, context, route, search, memory, verify, handoff, compress as MCP tools over stdio
   doctor [--strict]          validate the environment
   version                    print the version`)
 }

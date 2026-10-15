@@ -56,6 +56,24 @@ ai-workflow memory add --type verified-fix --keywords "payment retry" \
 
 `brief` emits the V2 agent contract: lane/risk, evidence state (`sufficient`, `requires_exploration`, `abstain`), workspace fingerprint, Superpowers skill sequence, CRG plan, agent slots, budget, and bounded fresh context (index hits with source windows, targeted source matches, durable memory). Formats: `json` (default), `markdown`, `prompt`.
 
+## Use with AI agents (MCP)
+
+`ai-workflow mcp` serves the workflow as [MCP](https://modelcontextprotocol.io) tools over stdio, so agents call it natively instead of shelling out: `brief`, `context`, `route`, `search`, `memory_search`, `memory_add`, `verify`, `handoff_validate`, `compress`.
+
+Claude Code:
+
+```sh
+claude mcp add ai-workflow -- ai-workflow --root /path/to/project mcp
+```
+
+Any other MCP client (Cursor, Codex, Windsurf and others) uses the same command:
+
+```json
+{ "mcpServers": { "ai-workflow": { "command": "ai-workflow", "args": ["--root", "/path/to/project", "mcp"] } } }
+```
+
+`verify` runs the check commands it is given (no shell, bounded output, timeouts), so keep your client's tool approval on for it.
+
 ## Commands
 
 ```bash
@@ -68,6 +86,7 @@ ai-workflow context "fix DuplicateCharge" [--symbol S] [--endpoint E] [--changed
 ai-workflow search "DuplicateCharge"      # raw indexed-symbol hits
 ai-workflow handoff [validate]            # validate ai-workspace/handoff/HANDOFF.md
 ai-workflow verify --check "go test ./..." [--strict]
+ai-workflow mcp                           # MCP tools over stdio for agents
 ai-workflow compress [--file F] [--max-lines 80] [--max-chars 12000] [--prefer-rtk] < noisy.log
 ai-workflow memory add|search|list|prune|export|import
 ai-workflow graph sync|status [--repo REL]... [--timeout 180]
