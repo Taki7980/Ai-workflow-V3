@@ -179,7 +179,7 @@ var mcpTools = []mcpTool{
 	},
 	{
 		Name:        "compress",
-		Description: "Bound noisy text such as test or build logs, keeping errors and the tail.",
+		Description: "Bound noisy text such as test or build logs: keeps the first 75% of max_lines and the last lines, omitting the middle.",
 		InputSchema: object([]string{"text"}, map[string]any{
 			"text":      str("text to compress"),
 			"max_lines": map[string]any{"type": "integer", "minimum": 1, "description": "default 80"},
