@@ -96,6 +96,27 @@ func TestSearchCommandRespectsAnswerLaneTokenBudget(t *testing.T) {
 	}
 }
 
+func TestSearchCommandReturnsHitInFileLargerThanBudget(t *testing.T) {
+	cfg := config.Default()
+	cfg.Budgets.Answer.EstimatedTokens = 5
+	idx := indexer.Index{
+		Files:   map[string]indexer.FileState{"big.go": {Size: 4000}},
+		Symbols: []indexer.Symbol{{Name: "NewBM25", Kind: "function", Path: "big.go", Line: 1}},
+	}
+	root := writeContextWorkspace(t, cfg, idx)
+	var out, errOut bytes.Buffer
+	if code := Run([]string{"--root", root, "search", "NewBM25"}, &out, &errOut); code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, errOut.String())
+	}
+	var hits []indexer.Hit
+	if err := json.Unmarshal(out.Bytes(), &hits); err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Symbol != "NewBM25" {
+		t.Fatalf("hits=%#v want NewBM25 despite its file exceeding the budget", hits)
+	}
+}
+
 func TestEstimateFileTokensZeroByteMinimumOne(t *testing.T) {
 	if got := estimateFileTokens(indexer.FileState{Size: 0}); got != 1 {
 		t.Fatalf("zero-byte estimate=%d want=1", got)

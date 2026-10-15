@@ -4,7 +4,7 @@
 
 AI Workflow V3 is a clean reimplementation of [AI Workflow Control Plane V2](https://github.com/Taki7980/ai-workflow-control-plane-v2). It keeps V2's core idea — **escalate capability, not context volume** — while making the runtime easier to install, faster to start, safer to distribute, and simpler to maintain across Windows, Linux, macOS, and WSL.
 
-> Status: V3 covers the daily V2 loop (setup, brief, handoff, verify, compress, memory) and the structural adapters (code-review-graph, SCIP) with contract parity enforced by the differential harness. Semantic retrieval is still in progress; V2 remains the behavioral reference for it.
+> Status: V3 covers the daily V2 loop (setup, brief, handoff, verify, compress, memory), structural adapters (code-review-graph, SCIP), semantic and external retrievers, run journals with replay, benchmarks and opt-in retrieval learning, plus an MCP server for agents. Contract parity with V2 is enforced by the differential harness.
 
 ## Why V3 exists
 

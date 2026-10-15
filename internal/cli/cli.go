@@ -438,7 +438,9 @@ func selectContextHits(query string, indexes map[string]indexer.Index, cfg confi
 			Text:            hit.Symbol + " " + hit.Kind,
 			Value:           hit,
 			Relevance:       hit.Score,
-			EstimatedTokens: estimateFileTokens(state),
+			// Capped so a file larger than the whole budget can still be the
+			// top hit instead of being unselectable.
+			EstimatedTokens: min(estimateFileTokens(state), cfg.Budgets.Answer.EstimatedTokens),
 		})
 	}
 	selected, err := retrieval.SelectMMR(candidates, retrieval.SelectorOptions{
