@@ -32,6 +32,27 @@ func Tokenize(text string) []string {
 	return out
 }
 
+// stems maps tokens to a crude English stem so task prose ("gathering",
+// "tiers") matches identifiers ("gather", "tier"). BM25 only: routing counts
+// raw Tokenize output and must stay V2-identical.
+func stems(toks []string) []string {
+	for i, t := range toks {
+		switch n := len(t); {
+		case n > 5 && strings.HasSuffix(t, "ing"):
+			t = t[:n-3]
+		case n > 4 && strings.HasSuffix(t, "ed"):
+			t = t[:n-2]
+		case n > 3 && strings.HasSuffix(t, "s") && !strings.HasSuffix(t, "ss"):
+			t = t[:n-1]
+		}
+		if len(t) > 4 && strings.HasSuffix(t, "e") {
+			t = t[:len(t)-1]
+		}
+		toks[i] = t
+	}
+	return toks
+}
+
 // camelParts splits s at camelCase boundaries, returning the resulting substrings.
 func camelParts(s string) []string {
 	r := []rune(s)
@@ -83,7 +104,7 @@ func NewBM25[T any](texts []string, values []T) *BM25[T] {
 	df := map[string]int{}
 	total := 0
 	for i, t := range texts {
-		toks := Tokenize(t)
+		toks := stems(Tokenize(t))
 		term := map[string]int{}
 		set := map[string]struct{}{}
 		for _, x := range toks {
@@ -117,7 +138,7 @@ func (b *BM25[T]) Rank(query string) []Scored[T] {
 		return nil
 	}
 	qset := map[string]struct{}{}
-	for _, t := range Tokenize(query) {
+	for _, t := range stems(Tokenize(query)) {
 		qset[t] = struct{}{}
 	}
 	out := []Scored[T]{}
