@@ -281,3 +281,17 @@ func TestBriefIncludesFreshMemory(t *testing.T) {
 		t.Fatalf("memory item missing: %+v", p.Context)
 	}
 }
+
+func TestBriefIncludesNamedNonCodeFile(t *testing.T) {
+	root := newWorkspace(t, map[string]string{"pay.go": payGo, "docs/GUIDE.md": "# Guide\n\nRetry teh payment.\n"})
+	p, err := Build(context.Background(), root, "fix a typo in docs/GUIDE.md", Options{ChangedFiles: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range p.Context {
+		if it.Metadata["path"] == "docs/GUIDE.md" && strings.Contains(it.Text, "Retry teh payment.") {
+			return
+		}
+	}
+	t.Fatalf("named file missing from context: %+v", p.Context)
+}

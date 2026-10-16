@@ -103,6 +103,44 @@ func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, 
 	}
 }
 
+var namedFileRE = regexp.MustCompile(`[\w./-]*\w\.[A-Za-z0-9]+`)
+
+// gatherNamed adds the head of each non-code file the task names ("typo in
+// README.md"): the symbol index never covers such files, yet the task points
+// straight at them. Read live, so always fresh; ranked with the best hit.
+func gatherNamed(g *gathered, root, query string, repos []workspace.Repository, indexes map[string]indexer.Index, snippet int) {
+	top := 1.0
+	for _, it := range g.items {
+		top = max(top, it.Score)
+	}
+	for _, rel := range namedFileRE.FindAllString(query, 3) {
+		if !filepath.IsLocal(filepath.FromSlash(rel)) {
+			continue
+		}
+		for _, r := range repos {
+			if _, indexed := indexes[r.RelativePath].Files[rel]; indexed {
+				break
+			}
+			p := filepath.Join(root, filepath.FromSlash(r.RelativePath), filepath.FromSlash(rel))
+			info, err := os.Stat(p)
+			if err != nil || !info.Mode().IsRegular() || info.Size() > maxScanBytes {
+				continue
+			}
+			b, err := os.ReadFile(p)
+			if err != nil {
+				continue
+			}
+			lines := strings.Split(strings.ReplaceAll(string(b), "\r\n", "\n"), "\n")
+			window := strings.Join(lines[:min(len(lines), 2*snippet+1)], "\n")
+			g.items = append(g.items, model.ContextItem{
+				Source: "lightweight_index", Text: compactJSON(indexHeader{rel, "file", rel, 1, r.RelativePath}) + "\n" + window, Score: top,
+				Metadata: map[string]any{"repository": r.RelativePath, "repository_id": r.RepositoryID, "path": rel, "line": 1, "kind": "file"},
+			})
+			break
+		}
+	}
+}
+
 // freshLines returns the file's lines when its SHA-256 matches want, else nil.
 func freshLines(root, repo, rel, want string) []string {
 	b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(repo), filepath.FromSlash(rel)))
