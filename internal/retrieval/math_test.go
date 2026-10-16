@@ -21,3 +21,12 @@ func TestTokenizeCamelAndSnake(t *testing.T) {
 		t.Fatalf("missing tokens: %#v; got %#v", want, got)
 	}
 }
+
+func TestBM25MatchesInflectedTaskWords(t *testing.T) {
+	b := NewBM25([]string{"gatherContext function brief/gather.go", "Tier type providers/tier.go", "css button spacing"}, []int{1, 2, 3})
+	for query, want := range map[string]int{"repository context gathering changes": 1, "model tiers": 2} {
+		if got := b.Rank(query); len(got) == 0 || got[0].Value != want {
+			t.Errorf("Rank(%q) = %#v, want %d first", query, got, want)
+		}
+	}
+}
