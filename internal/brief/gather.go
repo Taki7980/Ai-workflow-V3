@@ -71,6 +71,11 @@ const minHitScoreRatio = 0.6
 // 0.8 lifts held-out V2-commit file recall .51->.55; 0.7 breaks abstention.
 const testHitPenalty = 0.8
 
+// maxHitsPerFile keeps only a file's best index hit: the header names the file,
+// and further ±snippet windows of it mostly repeat what opening it shows.
+// Held-out V2 commits: tokens 841->743, file recall flat (.553->.556).
+const maxHitsPerFile = 1
+
 var (
 	testWordRE = regexp.MustCompile(`(?i)\b(tests?|testing|spec|specs|coverage)\b`)
 	testPathRE = regexp.MustCompile(`(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[a-z]+$|\.(test|spec)\.[a-z]+$`)
@@ -107,11 +112,15 @@ func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, 
 	}()
 	hits := indexer.Search(query, indexes, cfg.Context.Selector.MaxSelectorCandidates)
 	demoteTests(query, hits)
+	perFile := map[string]int{}
 	for _, hit := range hits {
 		if hit.Score < minHitScoreRatio*hits[0].Score {
 			break // hits are score-sorted; the rest are weaker still
 		}
 		key := hit.Repository + "\x00" + hit.Path
+		if perFile[key]++; perFile[key] > maxHitsPerFile {
+			continue
+		}
 		lines, seen := files[key]
 		if !seen {
 			lines = freshLines(root, hit.Repository, hit.Path, indexes[hit.Repository].Files[hit.Path].SHA256)
@@ -213,7 +222,7 @@ func searchTerm(query string) string {
 // gatherTargeted adds targeted_source line matches via ripgrep, or a bounded
 // scan of indexed files when ripgrep is unavailable or fails. Matches inside
 // an already gathered index window of snippet lines are dropped.
-func gatherTargeted(ctx context.Context, g *gathered, root, query string, repos []workspace.Repository, indexes map[string]indexer.Index, limit, snippet int) {
+func gatherTargeted(ctx context.Context, g *gathered, root, task, query string, repos []workspace.Repository, indexes map[string]indexer.Index, limit, snippet int) {
 	term := searchTerm(query)
 	if term == "" || limit <= 0 {
 		return
@@ -227,14 +236,25 @@ func gatherTargeted(ctx context.Context, g *gathered, root, query string, repos 
 		// Over-fetch so code matches can outrank the path-sorted docs and
 		// READMEs that otherwise fill every slot.
 		if lines, err := ripgrep(ctx, rg, root, term, rels, limit*targetedOverfetch); err == nil {
-			addTargeted(g, codeFirst(uncovered(lines, g.items, snippet), indexes, limit))
+			addTargeted(g, codeFirst(uncovered(withoutEchoes(lines, task), g.items, snippet), indexes, limit))
 			return
 		}
 		g.note("ripgrep failed; file scan used")
 	} else {
 		g.note("ripgrep unavailable; file scan used")
 	}
-	addTargeted(g, codeFirst(uncovered(scan(root, term, rels, indexes, limit*targetedOverfetch), g.items, snippet), indexes, limit))
+	addTargeted(g, codeFirst(uncovered(withoutEchoes(scan(root, term, rels, indexes, limit*targetedOverfetch), task), g.items, snippet), indexes, limit))
+}
+
+// withoutEchoes drops "path:line: text" matches that quote the whole task,
+// such as a TODO, issue copy or fixture listing it. They hold no code, yet
+// sufficiency would score them as an exact match and stop exploration.
+func withoutEchoes(lines []string, task string) []string {
+	echo := squash(task)
+	if len(echo) < 12 { // short tasks ("fix it") match too much to be echoes
+		return lines
+	}
+	return slices.DeleteFunc(lines, func(l string) bool { return strings.Contains(squash(l), echo) })
 }
 
 // uncovered drops "path:line: text" matches that sit inside a lightweight_index

@@ -311,3 +311,35 @@ func TestBriefDropsWeakIndexHits(t *testing.T) {
 		t.Fatal("strong hit dropped")
 	}
 }
+
+func TestBriefTaskEchoIsNotEvidence(t *testing.T) {
+	// The TODO only restates the task; no code implements it yet.
+	root := newWorkspace(t, map[string]string{
+		"pay.go":  payGo,
+		"TODO.md": "# TODO\n\n- add rate limiting to the upload endpoint\n",
+	})
+	p, err := Build(context.Background(), root, "add rate limiting to the upload endpoint", Options{ChangedFiles: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Retrieval.EvidenceState == "sufficient" {
+		t.Fatalf("task echo in TODO.md counted as evidence: %+v", p.Context)
+	}
+}
+
+func TestBriefKeepsOneIndexHitPerFile(t *testing.T) {
+	root := newWorkspace(t, map[string]string{"pay.go": payGo + "\n// RetryPaymentLater queues a retry.\nfunc RetryPaymentLater() error {\n\treturn nil\n}\n"})
+	p, err := Build(context.Background(), root, "fix RetryPayment and RetryPaymentLater", Options{ChangedFiles: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	for _, it := range p.Context {
+		if it.Source == "lightweight_index" && it.Metadata["path"] == "pay.go" {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("pay.go index items = %d, want 1: %+v", n, p.Context)
+	}
+}
