@@ -66,6 +66,30 @@ type indexHeader struct {
 // V2 sample tasks are flat on recall over 0.4-0.7; 0.8 breaks abstention.
 const minHitScoreRatio = 0.6
 
+// Descriptive test names (test_carry_run_identity_in_traces) out-match the
+// code a task edits, so test hits are demoted unless the task is about tests.
+// 0.8 lifts held-out V2-commit file recall .51->.55; 0.7 breaks abstention.
+const testHitPenalty = 0.8
+
+var (
+	testWordRE = regexp.MustCompile(`(?i)\b(tests?|testing|spec|specs|coverage)\b`)
+	testPathRE = regexp.MustCompile(`(^|/)(tests?|__tests__|spec)/|(^|/)test_[^/]*$|_test\.[a-z]+$|\.(test|spec)\.[a-z]+$`)
+)
+
+// demoteTests scales test-file hit scores by testHitPenalty and re-sorts,
+// unless the query is about tests.
+func demoteTests(query string, hits []indexer.Hit) {
+	if testWordRE.MatchString(query) {
+		return
+	}
+	for i := range hits {
+		if testPathRE.MatchString(hits[i].Path) {
+			hits[i].Score *= testHitPenalty
+		}
+	}
+	sort.SliceStable(hits, func(i, j int) bool { return hits[i].Score > hits[j].Score })
+}
+
 // gatherIndex adds lightweight_index items with fresh source windows. A file
 // whose content hash no longer matches the index is never served.
 func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, indexes map[string]indexer.Index, cfg config.Config) {
@@ -82,6 +106,7 @@ func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, 
 		}
 	}()
 	hits := indexer.Search(query, indexes, cfg.Context.Selector.MaxSelectorCandidates)
+	demoteTests(query, hits)
 	for _, hit := range hits {
 		if hit.Score < minHitScoreRatio*hits[0].Score {
 			break // hits are score-sorted; the rest are weaker still

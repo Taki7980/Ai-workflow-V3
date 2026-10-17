@@ -41,3 +41,35 @@ func TestUncoveredDropsMatchesInsideIndexWindows(t *testing.T) {
 		t.Fatalf("uncovered = %q, want %q", got, want)
 	}
 }
+
+func TestTestPathAndWordPatterns(t *testing.T) {
+	for path, want := range map[string]bool{
+		"tests/test_pay.py": true, "pay/pay_test.go": true, "src/pay.spec.ts": true, "web/__tests__/pay.js": true,
+		"test_pay.py": true, "pay/pay.go": false, "latest/pay.py": false, "attestation.go": false,
+	} {
+		if got := testPathRE.MatchString(path); got != want {
+			t.Errorf("testPathRE(%q) = %v, want %v", path, got, want)
+		}
+	}
+	for query, want := range map[string]bool{"which tests cover retry": true, "add test for retry": true, "fix the latest retry": false, "attest builds": false} {
+		if got := testWordRE.MatchString(query); got != want {
+			t.Errorf("testWordRE(%q) = %v, want %v", query, got, want)
+		}
+	}
+}
+
+func TestDemoteTestsRanksSourceFirstUnlessTaskIsAboutTests(t *testing.T) {
+	mk := func() []indexer.Hit {
+		return []indexer.Hit{{Path: "pay_test.go", Score: 1.1}, {Path: "pay.go", Score: 1.0}}
+	}
+	hits := mk()
+	demoteTests("fix retry backoff", hits)
+	if hits[0].Path != "pay.go" || hits[1].Score >= 1.1 {
+		t.Fatalf("edit task: %+v", hits)
+	}
+	hits = mk()
+	demoteTests("which tests cover retry backoff", hits)
+	if hits[0].Path != "pay_test.go" || hits[0].Score != 1.1 {
+		t.Fatalf("test task: %+v", hits)
+	}
+}
