@@ -61,6 +61,11 @@ type indexHeader struct {
 	Repository string `json:"repository"`
 }
 
+// minHitScoreRatio drops index hits scoring under this share of the best hit
+// (adaptive-k cutoff): weak partial-name matches crowd out better evidence.
+// V2 sample tasks are flat on recall over 0.4-0.7; 0.8 breaks abstention.
+const minHitScoreRatio = 0.6
+
 // gatherIndex adds lightweight_index items with fresh source windows. A file
 // whose content hash no longer matches the index is never served.
 func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, indexes map[string]indexer.Index, cfg config.Config) {
@@ -76,7 +81,11 @@ func gatherIndex(g *gathered, root, query string, repos []workspace.Repository, 
 			g.note("index stale: %s (%d files)", repo, stale[repo])
 		}
 	}()
-	for _, hit := range indexer.Search(query, indexes, cfg.Context.Selector.MaxSelectorCandidates) {
+	hits := indexer.Search(query, indexes, cfg.Context.Selector.MaxSelectorCandidates)
+	for _, hit := range hits {
+		if hit.Score < minHitScoreRatio*hits[0].Score {
+			break // hits are score-sorted; the rest are weaker still
+		}
 		key := hit.Repository + "\x00" + hit.Path
 		lines, seen := files[key]
 		if !seen {

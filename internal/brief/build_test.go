@@ -295,3 +295,19 @@ func TestBriefIncludesNamedNonCodeFile(t *testing.T) {
 	}
 	t.Fatalf("named file missing from context: %+v", p.Context)
 }
+
+func TestBriefDropsWeakIndexHits(t *testing.T) {
+	root := newWorkspace(t, map[string]string{"pay.go": payGo, "status.go": "package pay\n\ntype PaymentStatus int\n"})
+	p, err := Build(context.Background(), root, "fix RetryPayment backoff", Options{ChangedFiles: []string{"x"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, it := range p.Context {
+		if it.Source == "lightweight_index" && it.Metadata["path"] == "status.go" {
+			t.Fatalf("weak partial-name hit kept: %q", it.Text)
+		}
+	}
+	if _, ok := firstSource(p, "lightweight_index"); !ok {
+		t.Fatal("strong hit dropped")
+	}
+}
