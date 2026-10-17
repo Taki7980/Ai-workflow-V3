@@ -73,3 +73,13 @@ func TestDemoteTestsRanksSourceFirstUnlessTaskIsAboutTests(t *testing.T) {
 		t.Fatalf("test task: %+v", hits)
 	}
 }
+
+func TestWithoutEchoesDropsTaskRestatements(t *testing.T) {
+	lines := []string{"TODO.md:3: - Add rate limiting to the upload endpoint", "api/upload.go:9: func upload() {"}
+	if got := withoutEchoes(slices.Clone(lines), "add rate limiting to the upload endpoint"); !slices.Equal(got, lines[1:]) {
+		t.Fatalf("withoutEchoes = %q", got)
+	}
+	if got := withoutEchoes(slices.Clone(lines), "fix it"); len(got) != 2 {
+		t.Fatalf("short task dropped lines: %q", got)
+	}
+}
