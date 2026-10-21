@@ -11,7 +11,7 @@ func TestWithinRejectsSymlinkEscapeForMissingFile(t *testing.T) {
 	if err := os.Symlink(outside, filepath.Join(root, "link")); err != nil {
 		t.Skipf("symlinks unavailable: %v", err)
 	}
-	for _, p := range []string{"link/new.txt", "link/a/b/new.txt", "link", "../x", filepath.Join(outside, "y")} {
+	for _, p := range []string{"link/new.txt", "link/a/b/new.txt", "link", "../x", filepath.Join(outside, "y"), "file.txt:stream", "sub/file:ads:$DATA"} {
 		if _, _, err := Within(root, p); err == nil {
 			t.Errorf("%s escaped the root", p)
 		}

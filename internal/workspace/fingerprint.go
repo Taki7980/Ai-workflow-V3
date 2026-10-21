@@ -203,6 +203,13 @@ func resolveExisting(p string) string {
 // Within resolves raw (relative or absolute) against root, following symlinks,
 // and rejects any path that escapes the root. rel is slash-separated.
 func Within(root, raw string) (rel, abs string, err error) {
+	// Reject Windows NTFS Alternate Data Streams and DOS device names
+	if strings.Contains(raw, ":") {
+		// Allow Windows drive letter only if it is at the very beginning (e.g. C:\)
+		if len(raw) < 2 || raw[1] != ':' || strings.Contains(raw[2:], ":") {
+			return "", "", errors.New("invalid path: stream or device specifier not permitted")
+		}
+	}
 	rootAbs, err := filepath.Abs(root)
 	if err != nil {
 		return "", "", err

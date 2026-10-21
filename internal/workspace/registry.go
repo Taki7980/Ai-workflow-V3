@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/filelock"
 	"github.com/Taki7980/ai-workflow-v3/internal/procx"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 )
@@ -72,16 +73,15 @@ func RemoteIdentity(raw string) string {
 		return ""
 	}
 	if strings.Contains(raw, "@") && strings.Contains(raw, ":") && !strings.Contains(raw, "://") {
-		parts := strings.SplitN(raw, ":", 2)
-		hostPart := parts[0]
-		host := hostPart
-		if at := strings.LastIndex(hostPart, "@"); at >= 0 {
-			host = hostPart[at+1:]
-		}
-		path := strings.Trim(parts[1], "/")
-		path = strings.TrimSuffix(path, ".git")
-		if host != "" && path != "" {
-			return strings.ToLower(host) + "/" + path
+		at := strings.LastIndex(raw, "@")
+		rest := raw[at+1:]
+		if colon := strings.Index(rest, ":"); colon >= 0 {
+			host := rest[:colon]
+			path := strings.Trim(rest[colon+1:], "/")
+			path = strings.TrimSuffix(path, ".git")
+			if host != "" && path != "" {
+				return strings.ToLower(host) + "/" + path
+			}
 		}
 	}
 	if parsed, err := url.Parse(raw); err == nil && parsed.Scheme != "" && parsed.Host != "" {
@@ -214,7 +214,7 @@ func metadata(ctx context.Context, repoRoot, controlRoot string, include bool) R
 // gitText runs a git command with the given args in root, bounded by a
 // timeout, and returns its trimmed stdout output.
 func gitText(parent context.Context, root string, args ...string) (string, error) {
-	b, err := procx.Output(parent, procx.Cmd{Argv: append([]string{"git"}, args...), Dir: root, Env: procx.InheritEnv(), Timeout: 3 * time.Second, MaxStdout: 1 << 20})
+	b, err := procx.Output(parent, procx.Cmd{Argv: append([]string{"git"}, args...), Dir: root, Env: procx.SafeEnv(), Timeout: 3 * time.Second, MaxStdout: 1 << 20})
 	if err != nil {
 		return "", err
 	}
@@ -224,6 +224,11 @@ func gitText(parent context.Context, root string, args ...string) (string, error
 // Save writes the given repositories as the workspace registry for root,
 // marking it as requiring review.
 func Save(root string, repos []Repository) error {
+	release, err := filelock.Acquire(RegistryPath(root))
+	if err != nil {
+		return err
+	}
+	defer release()
 	return storage.WriteJSON(RegistryPath(root), Registry{Version: RegistryVersion, ReviewRequired: true, Repositories: repos})
 }
 

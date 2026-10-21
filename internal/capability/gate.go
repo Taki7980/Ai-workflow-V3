@@ -219,15 +219,16 @@ func orMap(m map[string]any) any {
 }
 
 var drivePrefix = regexp.MustCompile(`^[A-Za-z]:`)
+var dosDeviceRegex = regexp.MustCompile(`^(?i)(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(\..*)?$`)
 
 func safeRelativePath(v string) bool {
 	raw := strings.ReplaceAll(strings.TrimSpace(v), `\`, "/")
 	if raw == "" || strings.ContainsRune(raw, 0) || strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "~") ||
-		strings.Contains(raw, "://") || drivePrefix.MatchString(raw) {
+		strings.Contains(raw, ":") {
 		return false
 	}
 	for _, part := range strings.Split(strings.TrimSuffix(raw, "/"), "/") {
-		if part == ".." || part == "" {
+		if part == ".." || part == "" || part == "." || dosDeviceRegex.MatchString(part) {
 			return false
 		}
 	}
