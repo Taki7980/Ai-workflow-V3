@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -23,9 +24,12 @@ func TestIsAllowedCheck(t *testing.T) {
 		"npm test",
 		"pytest tests/",
 		"cargo test --all",
-		`"C:\Program Files\Go\bin\go.exe" test ./...`,
+		"/usr/local/bin/go test ./...",
 		"./gradlew build",
 		"python -m unittest",
+	}
+	if runtime.GOOS == "windows" {
+		allow = append(allow, `"C:\Program Files\Go\bin\go.exe" test ./...`)
 	}
 	for _, c := range allow {
 		if !IsAllowedCheck(c) {

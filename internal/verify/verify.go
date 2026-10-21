@@ -5,7 +5,6 @@ package verify
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -39,7 +38,11 @@ func IsAllowedCheck(raw string) bool {
 	if err != nil || len(argv) == 0 {
 		return false
 	}
-	base := strings.ToLower(filepath.Base(argv[0]))
+	exe := argv[0]
+	if lastSlash := strings.LastIndexAny(exe, `/\`); lastSlash >= 0 {
+		exe = exe[lastSlash+1:]
+	}
+	base := strings.ToLower(exe)
 	return AllowedCheckRunners[base]
 }
 
