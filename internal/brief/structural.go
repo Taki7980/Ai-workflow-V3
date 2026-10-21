@@ -142,6 +142,11 @@ func expandStructural(ctx context.Context, g *gathered, root, task string, opt O
 		Patterns: plan.StructuralPatterns, MaxCalls: cfg.Execution.OrchestrationBudget.MaxCRGCalls, File: file}
 	ran := false
 	for _, s := range steps {
+		if dctx.Err() != nil {
+			errs[s.label] = fmt.Sprintf("global retrieval deadline exceeded after %g seconds", structuralDeadline.Seconds())
+			g.note("%s failed: deadline", s.label)
+			break
+		}
 		if EvaluateSufficiency(task, g.items, true, plan.StructuralPatterns, threshold).StructuralComplete {
 			break
 		}
@@ -152,7 +157,7 @@ func expandStructural(ctx context.Context, g *gathered, root, task string, opt O
 			skipped[s.label] = "provider not configured"
 			continue
 		}
-		if st := s.status(dctx, root, repo.RelativePath); !st.Ready {
+		if st := s.status(ctx, root, repo.RelativePath); !st.Ready {
 			skipped[s.label] = st.Reason
 			if st.Reason != s.quietMissing {
 				g.note(s.sync, repo.RelativePath, st.Reason)

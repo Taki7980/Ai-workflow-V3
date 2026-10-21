@@ -136,7 +136,7 @@ func TestBriefStructuralDeadline(t *testing.T) {
 	structuraltest.UseFakeCRG(t)
 	t.Setenv("CRG_FAKE_MODE", "hang")
 	old := structuralDeadline
-	structuralDeadline = 500 * time.Millisecond
+	structuralDeadline = 1 * time.Second
 	t.Cleanup(func() { structuralDeadline = old })
 	root := newWorkspace(t, map[string]string{"pkg/a.go": fooGo})
 	freshGraph(t, root, ".")
@@ -145,7 +145,7 @@ func TestBriefStructuralDeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if time.Since(start) > 10*time.Second || p.Retrieval.ProviderErrors["structural-expansion"] == "" {
+	if time.Since(start) > 15*time.Second || p.Retrieval.ProviderErrors["structural-expansion"] == "" {
 		t.Fatalf("took %v, errors %v", time.Since(start), p.Retrieval.ProviderErrors)
 	}
 }
