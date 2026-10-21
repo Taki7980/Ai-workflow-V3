@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/filelock"
 	"github.com/Taki7980/ai-workflow-v3/internal/retrieval"
 	"github.com/Taki7980/ai-workflow-v3/internal/storage"
 	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
@@ -318,6 +319,12 @@ func encode(recs []Record) ([]byte, error) {
 }
 
 func save(root string, recs []Record) error {
+	release, err := filelock.Acquire(Path(root))
+	if err != nil {
+		return err
+	}
+	defer release()
+
 	b, err := encode(recs)
 	if err != nil {
 		return err

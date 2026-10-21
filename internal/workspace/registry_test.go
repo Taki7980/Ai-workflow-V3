@@ -45,8 +45,10 @@ func TestRepositoryIDMatchesV2NullRemoteEncoding(t *testing.T) {
 
 func TestRemoteIdentityMatchesV2(t *testing.T) {
 	cases := map[string]string{
-		"git@github.com:Taki7980/ai-workflow-control-plane-v2.git":     "github.com/Taki7980/ai-workflow-control-plane-v2",
-		"https://github.com/Taki7980/ai-workflow-control-plane-v2.git": "github.com/Taki7980/ai-workflow-control-plane-v2",
+		"git@github.com:Taki7980/ai-workflow-control-plane-v2.git":          "github.com/Taki7980/ai-workflow-control-plane-v2",
+		"https://github.com/Taki7980/ai-workflow-control-plane-v2.git":      "github.com/Taki7980/ai-workflow-control-plane-v2",
+		"user:secretpass@github.com:Taki7980/ai-workflow-v3.git":            "github.com/Taki7980/ai-workflow-v3",
+		"https://user:token123@github.com/Taki7980/ai-workflow-v3.git":     "github.com/Taki7980/ai-workflow-v3",
 	}
 	for input, want := range cases {
 		if got := RemoteIdentity(input); got != want {

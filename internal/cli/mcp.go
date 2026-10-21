@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Taki7980/ai-workflow-v3/internal/verify"
 	"github.com/Taki7980/ai-workflow-v3/internal/version"
 )
 
@@ -164,6 +165,10 @@ var mcpTools = []mcpTool{
 		call: func(root string, a mcpArgs, out, errOut io.Writer) int {
 			argv := []string{"--strict"}
 			for _, c := range a.Checks {
+				if !verify.IsAllowedCheck(c) {
+					fmt.Fprintf(errOut, "check %q rejected: executable is not an allowlisted verification tool\n", c)
+					return 2
+				}
 				argv = append(argv, "--check="+c)
 			}
 			return verifyCmd(root, argv, out, errOut)
