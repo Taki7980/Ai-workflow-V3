@@ -198,7 +198,7 @@ func TestBriefMissingIndexDegrades(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !slices.Contains(p.Retrieval.Fallbacks, "index unavailable: .") {
+	if !slices.Contains(p.Retrieval.Fallbacks, "index unavailable: . (run `ai-workflow index`)") {
 		t.Fatalf("fallbacks %q", p.Retrieval.Fallbacks)
 	}
 }

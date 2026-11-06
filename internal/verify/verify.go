@@ -10,6 +10,7 @@ import (
 
 	"github.com/Taki7980/ai-workflow-v3/internal/handoff"
 	"github.com/Taki7980/ai-workflow-v3/internal/procx"
+	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
 // AllowedCheckRunners are the standard testing, linting, and build tools
@@ -56,6 +57,9 @@ type Result struct {
 	OK            bool          `json:"ok"`
 	Checks        []CheckResult `json:"checks"`
 	HandoffErrors []string      `json:"handoff_errors"`
+	// CoChangedFiles lists files history usually changes with the changed
+	// files, a reminder of edits a change may be missing. It never affects OK.
+	CoChangedFiles []workspace.CoChange `json:"co_changed_files,omitempty"`
 }
 
 var checkTimeout = 120 * time.Second
@@ -106,5 +110,7 @@ func Verify(ctx context.Context, root string, checks []string, handoffMaxLines i
 	}
 	res.HandoffErrors = handoff.Validate(root, handoffMaxLines)
 	res.OK = res.OK && len(res.HandoffErrors) == 0
+	reg, _ := workspace.Load(root) // without a registry, the zero value still covers the root repository
+	res.CoChangedFiles = workspace.CoChanged(ctx, root, reg, workspace.ChangedFiles(ctx, root, reg), 5)
 	return res
 }

@@ -42,6 +42,8 @@ gh attestation verify "$(command -v ai-workflow)" --repo Taki7980/Ai-workflow-V3
 
 With a Go toolchain (1.26+): `go install github.com/Taki7980/ai-workflow-v3/cmd/ai-workflow@latest`.
 
+Upgrading from a release that used symbol extractor `symbols-v1`: run `ai-workflow index` once in each workspace. Until you do, `brief` reports ``index unavailable: <repo> (run `ai-workflow index`)`` and falls back to source search.
+
 ## Quick start
 
 ```bash
@@ -55,6 +57,10 @@ ai-workflow memory add --type verified-fix --keywords "payment retry" \
 ```
 
 `brief` emits the V2 agent contract: lane/risk, evidence state (`sufficient`, `requires_exploration`, `abstain`), workspace fingerprint, Superpowers skill sequence, CRG plan, agent slots, budget, and bounded fresh context (index hits with source windows, targeted source matches, durable memory). Formats: `json` (default), `markdown`, `prompt`.
+
+When files are already changed, `brief` and `verify` also return `co_changed_files`. These are files that the project's Git history usually changes together with your edits but that you have not touched yet. You get at most five. A file is listed only when at least two past commits, and at least 30% of the edited file's commits, changed it too. Commits that touch more than 30 files are ignored. The hints are reminders, not evidence: they never change `evidence_state`, context selection or `verify`'s `ok`. On held-out commits of spf13/cobra and sindresorhus/ky, 53–57% of the hints named a file that the same commit really changed.
+
+Symbols are extracted with the Go AST for Go and with declaration patterns for every other indexed language. These cover Python, JavaScript/TypeScript (including arrow functions bound to names and class methods), Java, C#, Kotlin, Swift, PHP, Ruby, Rust and C/C++. Release binaries are built without cgo, so these patterns are the default extractor; the `treesitter` build tag is optional. On sindresorhus/ky the extractor finds 959 symbols where the previous one found 124. On held-out ky commits, file recall@5 rose from 0.35 to 0.38 and MRR from 0.37 to 0.45.
 
 ## Use with AI agents (MCP)
 
@@ -156,6 +162,13 @@ go build -o bin/ai-workflow ./cmd/ai-workflow
 ```
 
 Releases are cut by pushing a `vX.Y.Z` tag: `.github/workflows/release.yml` tests, cross-compiles static binaries for linux/darwin/windows × amd64/arm64, writes `SHA256SUMS`, attests build provenance and publishes the GitHub release.
+
+## Research basis
+
+- **Index coverage.** Code-localization agents work from an index of code entities such as files, classes and functions ([LocAgent, arXiv:2503.09089](https://arxiv.org/abs/2503.09089)). A symbol the extractor misses cannot be retrieved, so the extractor now covers every language that V3 indexes.
+- **History as a signal.** Commit history is an underused signal in repository-level code search ([arXiv:2502.07067](https://arxiv.org/abs/2502.07067)). Mining co-changes from version history to suggest related edits comes from Zimmermann et al., "Mining Version Histories to Guide Software Changes" (ICSE 2004). This is the source of `co_changed_files`.
+- **Short agent feedback.** Agent–computer interfaces work best when feedback is concise and bounded ([SWE-agent, arXiv:2405.15793](https://arxiv.org/abs/2405.15793)). Models also use content in the middle of long contexts poorly ([Lost in the Middle, arXiv:2307.03172](https://arxiv.org/abs/2307.03172)). For these reasons co-change hints stay one capped line and are not added to the context.
+- **Considered, not adopted.** Learned context pruning ([SWE-Pruner, arXiv:2601.16746](https://arxiv.org/abs/2601.16746)) needs a model at query time. V3 stays a model-free binary.
 
 ## Architecture
 

@@ -71,7 +71,9 @@ type Packet struct {
 	EstimatedContextTokensUsed int                  `json:"estimated_context_tokens_used"`
 	OutputCompression          string               `json:"output_compression"`
 	ChangedFilesDetected       []string             `json:"changed_files_detected"`
-	HandoffWritten             string               `json:"handoff_written,omitempty"`
+	// CoChangedFiles are files history usually changes with the changed files; advisory, not evidence.
+	CoChangedFiles []workspace.CoChange `json:"co_changed_files,omitempty"`
+	HandoffWritten string               `json:"handoff_written,omitempty"`
 	// Candidates is the full gathered pool before selection (benchmarks only).
 	Candidates []model.ContextItem `json:"-"`
 }
@@ -81,6 +83,15 @@ func orNone(xs []string) string {
 		return "none"
 	}
 	return strings.Join(xs, ", ")
+}
+
+// coChangeList renders co-change hints as "path (with changed, confidence)".
+func coChangeList(cs []workspace.CoChange) string {
+	parts := make([]string, len(cs))
+	for i, c := range cs {
+		parts[i] = fmt.Sprintf("%s (with %s, %.2f)", c.Path, c.With, c.Confidence)
+	}
+	return strings.Join(parts, ", ")
 }
 
 func orUnknown(s string) string {
@@ -121,7 +132,7 @@ func Format(p Packet, format string) (string, error) {
 		if len(p.ChangedFilesDetected) > 0 {
 			changed = strings.Join(p.ChangedFilesDetected, ", ")
 		}
-		return strings.Join([]string{
+		lines := []string{
 			"# Brief: " + p.Task,
 			fmt.Sprintf("**Lane**: %s | **Risk**: %s | **Confidence**: %.2f | **Model tier**: %s", p.Lane, p.Risk, p.Confidence, p.ModelTier),
 			fmt.Sprintf("**Retrieval**: %s | **Evidence**: %s", orUnknown(r.RetrievalIntent), orUnknown(r.EvidenceState)),
@@ -131,11 +142,11 @@ func Format(p Packet, format string) (string, error) {
 			"**Workspace state**: " + fp,
 			fmt.Sprintf("**Budget**: %d est. tokens | %d output", p.Budget.EstimatedContextTokens, p.Budget.MaxOutputTokens),
 			"**Changed files**: " + changed,
-			"",
-			"## Context",
-			"",
-			body,
-		}, "\n"), nil
+		}
+		if len(p.CoChangedFiles) > 0 {
+			lines = append(lines, "**Usually changed with these**: "+coChangeList(p.CoChangedFiles))
+		}
+		return strings.Join(append(lines, "", "## Context", "", body), "\n"), nil
 	case "prompt":
 		lines := []string{
 			"[TASK] " + p.Task,
@@ -150,6 +161,9 @@ func Format(p Packet, format string) (string, error) {
 			"[HINT] " + p.ExecutionHint,
 			fmt.Sprintf("[BUDGET] context=%dtok output=%dtok", p.Budget.EstimatedContextTokens, p.Budget.MaxOutputTokens),
 			"[CHANGED_FILES] " + orNone(p.ChangedFilesDetected),
+		}
+		if len(p.CoChangedFiles) > 0 {
+			lines = append(lines, "[CO_CHANGED_FILES] "+coChangeList(p.CoChangedFiles))
 		}
 		if len(p.Context) > 0 {
 			lines = append(lines, "[CONTEXT_START]", ctx, "[CONTEXT_END]")

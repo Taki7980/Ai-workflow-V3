@@ -20,7 +20,7 @@ const mcpMaxMessage = 8 << 20
 
 var mcpProtocolVersions = []string{"2025-06-18", "2025-03-26", "2024-11-05"}
 
-const mcpInstructions = `AI Workflow control plane for this workspace. Call brief (or context) before editing: it returns lane, risk, evidence_state and bounded context. Do not edit while evidence_state is requires_exploration. Use memory_search for durable project facts, memory_add after a verified fix, and verify with focused checks before finishing.`
+const mcpInstructions = `AI Workflow control plane for this workspace. Call brief (or context) before editing: it returns lane, risk, evidence_state and bounded context. Do not edit while evidence_state is requires_exploration. Use memory_search for durable project facts, memory_add after a verified fix, and verify with focused checks before finishing. brief and verify list co_changed_files: files history usually changes with your edits; check each before calling the change complete.`
 
 // mcpArgs is the union of every tool's arguments; each tool reads only its own.
 type mcpArgs struct {

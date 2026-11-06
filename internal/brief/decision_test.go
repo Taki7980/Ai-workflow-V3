@@ -8,6 +8,7 @@ import (
 	"github.com/Taki7980/ai-workflow-v3/internal/config"
 	"github.com/Taki7980/ai-workflow-v3/internal/model"
 	"github.com/Taki7980/ai-workflow-v3/internal/providers"
+	"github.com/Taki7980/ai-workflow-v3/internal/workspace"
 )
 
 func item(source, text string) model.ContextItem {
@@ -128,6 +129,22 @@ func TestFormatMarkdownAndUnknown(t *testing.T) {
 	}
 	if _, err := Format(samplePacket(), "xml"); err == nil {
 		t.Fatal("unknown format must error")
+	}
+}
+
+func TestFormatShowsCoChangeOnlyWhenPresent(t *testing.T) {
+	p := samplePacket()
+	for _, f := range []string{"markdown", "prompt"} {
+		if out, _ := Format(p, f); strings.Contains(out, "with these") || strings.Contains(out, "CO_CHANGED") {
+			t.Fatalf("%s without co-change must keep the V2 layout:\n%s", f, out)
+		}
+	}
+	p.CoChangedFiles = []workspace.CoChange{{Path: "api_test.go", With: "api.go", Support: 3, Confidence: 0.6}}
+	md, _ := Format(p, "markdown")
+	prompt, _ := Format(p, "prompt")
+	if !strings.Contains(md, "**Usually changed with these**: api_test.go (with api.go, 0.60)\n") ||
+		!strings.Contains(prompt, "[CO_CHANGED_FILES] api_test.go (with api.go, 0.60)\n") {
+		t.Fatalf("missing co-change line:\n%s\n---\n%s", md, prompt)
 	}
 }
 

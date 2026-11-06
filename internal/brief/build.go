@@ -171,7 +171,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		roots = append(roots, filepath.Join(root, filepath.FromSlash(repo.RelativePath)))
 	}
 	for _, rel := range missing {
-		g.note("index unavailable: %s", rel)
+		g.note("index unavailable: %s (run `ai-workflow index`)", rel)
 	}
 	latency := map[string]float64{}
 	stage := func(name string, start time.Time) {
@@ -280,6 +280,10 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 	if status.RTK {
 		compression = "rtk"
 	}
+	var coChanged []workspace.CoChange
+	if decision.Lane != model.LaneAnswer && len(changed) > 0 {
+		coChanged = workspace.CoChanged(ctx, root, reg, changed, 5)
+	}
 	p := Packet{
 		Task:              task,
 		RouteDecision:     decision,
@@ -309,6 +313,7 @@ func Build(ctx context.Context, root, task string, opt Options) (Packet, error) 
 		EstimatedContextTokensUsed: estimateTokens(strings.Join(texts, "\n")),
 		OutputCompression:          compression,
 		ChangedFilesDetected:       changed,
+		CoChangedFiles:             coChanged,
 		Candidates:                 g.items,
 	}
 	if learned != nil {
