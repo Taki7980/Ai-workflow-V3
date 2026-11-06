@@ -61,7 +61,7 @@ func TestTreeSitterBuildRejectsDefaultExtractorRevision(t *testing.T) {
 		Version:           IndexVersion,
 		Repository:        repo.RelativePath,
 		RepositoryID:      repo.RepositoryID,
-		ExtractorRevision: "symbols-v1:go-ast+regex",
+		ExtractorRevision: "symbols-v2:go-ast+regex",
 		Files:             map[string]FileState{},
 	}
 	if err := storage.WriteJSON(Path(root, repo), old); err != nil {
