@@ -4,7 +4,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -107,7 +106,8 @@ func selfUpdate(exe, current string) (string, error) {
 
 // replaceExecutable swaps exe for bin. A running Windows exe cannot be
 // overwritten but can be renamed, so exe moves aside to exe.old first; the
-// next update removes it.
+// next update removes it unless an agent still runs it, in which case the
+// copy set aside gets a fresh name instead.
 func replaceExecutable(exe string, bin []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(exe), ".ai-workflow-update-*")
 	if err != nil {
@@ -124,10 +124,16 @@ func replaceExecutable(exe string, bin []byte) error {
 		os.Remove(tmp.Name())
 		return werr
 	}
+	if entries, err := os.ReadDir(filepath.Dir(exe)); err == nil {
+		for _, e := range entries {
+			if strings.HasPrefix(e.Name(), filepath.Base(exe)+".old") {
+				os.Remove(filepath.Join(filepath.Dir(exe), e.Name())) // a copy still running stays
+			}
+		}
+	}
 	old := exe + ".old"
-	if err := os.Remove(old); err != nil && !errors.Is(err, os.ErrNotExist) {
-		os.Remove(tmp.Name())
-		return fmt.Errorf("close running ai-workflow processes and retry (%s is in use): %w", old, err)
+	if _, err := os.Lstat(old); err == nil {
+		old = fmt.Sprintf("%s.old-%d", exe, time.Now().UnixNano())
 	}
 	if err := os.Rename(exe, old); err != nil {
 		os.Remove(tmp.Name())

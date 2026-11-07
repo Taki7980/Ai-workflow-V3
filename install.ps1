@@ -43,9 +43,11 @@ try {
     $target = Join-Path $installDir 'ai-workflow.exe'
     # A running exe (e.g. an agent's MCP server) cannot be overwritten on Windows, but it can be renamed.
     if (Test-Path $target) {
-        Remove-Item -Force "$target.old" -ErrorAction SilentlyContinue
-        if (Test-Path "$target.old") { throw "Close running ai-workflow processes and retry ($target.old is in use)" }
-        Rename-Item $target 'ai-workflow.exe.old'
+        # Copies set aside by earlier upgrades go, except one an agent still runs, which keeps its name.
+        Get-ChildItem $installDir -Filter 'ai-workflow.exe.old*' | Remove-Item -Force -ErrorAction SilentlyContinue
+        $old = 'ai-workflow.exe.old'
+        if (Test-Path "$target.old") { $old = "ai-workflow.exe.old-$([DateTime]::UtcNow.Ticks)" }
+        Rename-Item $target $old
     }
     Move-Item -Force (Join-Path $tmp $asset) $target
 } finally {

@@ -65,6 +65,15 @@ func TestSelfUpdate(t *testing.T) {
 		t.Fatalf("old binary left behind: %v", err)
 	}
 
+	// An earlier copy still running (here: undeletable) must not block the update.
+	writeExe()
+	if err := os.MkdirAll(filepath.Join(exe+".old", "busy"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := selfUpdate(exe, "1.0.0"); err != nil || readExe() != "new binary" {
+		t.Fatalf("update past a busy .old: err=%v content=%q", err, readExe())
+	}
+
 	writeExe()
 	sums = strings.Repeat("0", 64) + "  " + asset + "\n"
 	if _, err := selfUpdate(exe, "1.0.0"); err == nil || !strings.Contains(err.Error(), "SHA-256 verification failed") || readExe() != "old binary" {
