@@ -140,6 +140,11 @@ jobs:
         run: |
           sh install.sh
           test "$("$AI_WORKFLOW_INSTALL_DIR/ai-workflow" version)" = "9.9.9"
+          # With no install dir, re-running must replace the copy already on PATH.
+          dir="$AI_WORKFLOW_INSTALL_DIR"
+          printf '#!/bin/sh\necho old\n' > "$dir/ai-workflow"
+          PATH="$dir:$PATH" AI_WORKFLOW_INSTALL_DIR= sh install.sh
+          test "$("$dir/ai-workflow" version)" = "9.9.9"
       - name: install.ps1
         if: runner.os == 'Windows'
         shell: pwsh
@@ -151,6 +156,12 @@ jobs:
           ./install.ps1
           ./install.ps1  # upgrade over an existing binary
           if ((& "$env:AI_WORKFLOW_INSTALL_DIR\ai-workflow.exe" version) -ne '9.9.9') { exit 1 }
+          # With no install dir, re-running must replace the copy already on PATH.
+          $dir = $env:AI_WORKFLOW_INSTALL_DIR
+          Set-Content "$dir\ai-workflow.exe" 'old'
+          $env:Path = "$dir;$env:Path"; $env:AI_WORKFLOW_INSTALL_DIR = ''
+          ./install.ps1
+          if ((& "$dir\ai-workflow.exe" version) -ne '9.9.9') { exit 1 }
 
   retrieval-benchmark:
     runs-on: ubuntu-latest

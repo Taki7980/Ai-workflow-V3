@@ -1,9 +1,13 @@
 # Install ai-workflow.exe from a GitHub release after SHA-256 verification.
 # Usage: irm https://raw.githubusercontent.com/Taki7980/Ai-workflow-V3/main/install.ps1 | iex
-# Env: AI_WORKFLOW_VERSION=X.Y.Z (default latest), AI_WORKFLOW_INSTALL_DIR
+# Env: AI_WORKFLOW_VERSION=X.Y.Z (default latest), AI_WORKFLOW_INSTALL_DIR (default: the folder of the
+# ai-workflow.exe already on PATH, so re-running upgrades it in place; else %LOCALAPPDATA%\Programs\ai-workflow)
 $ErrorActionPreference = 'Stop'
 $repo = 'Taki7980/Ai-workflow-V3'
-$installDir = if ($env:AI_WORKFLOW_INSTALL_DIR) { $env:AI_WORKFLOW_INSTALL_DIR } else { Join-Path $env:LOCALAPPDATA 'Programs\ai-workflow' }
+$existing = Get-Command ai-workflow.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+$installDir = if ($env:AI_WORKFLOW_INSTALL_DIR) { $env:AI_WORKFLOW_INSTALL_DIR }
+    elseif ($existing) { Split-Path $existing.Source }
+    else { Join-Path $env:LOCALAPPDATA 'Programs\ai-workflow' }
 
 if ($env:AI_WORKFLOW_VERSION) {
     $version = $env:AI_WORKFLOW_VERSION.TrimStart('v')
@@ -49,7 +53,7 @@ try {
 }
 
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
-if (($userPath -split ';') -notcontains $installDir) {
+if (($userPath -split ';') -notcontains $installDir -and ($env:Path -split ';') -notcontains $installDir) {
     [Environment]::SetEnvironmentVariable('Path', "$userPath;$installDir", 'User')
     Write-Host "Added $installDir to your user PATH (restart the terminal)."
 }

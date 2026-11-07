@@ -1,11 +1,19 @@
 #!/usr/bin/env sh
 # Install the ai-workflow binary from a GitHub release after SHA-256 verification.
 # Usage: curl -fsSL https://raw.githubusercontent.com/Taki7980/Ai-workflow-V3/main/install.sh | sh
-# Env: AI_WORKFLOW_VERSION=X.Y.Z (default latest), AI_WORKFLOW_INSTALL_DIR (default ~/.local/bin)
+# Env: AI_WORKFLOW_VERSION=X.Y.Z (default latest), AI_WORKFLOW_INSTALL_DIR (default: the directory of the
+# ai-workflow already on PATH, so re-running upgrades it in place; else ~/.local/bin)
 set -eu
 
 REPO="Taki7980/Ai-workflow-V3"
-INSTALL_DIR="${AI_WORKFLOW_INSTALL_DIR:-$HOME/.local/bin}"
+INSTALL_DIR="${AI_WORKFLOW_INSTALL_DIR:-}"
+if [ -z "$INSTALL_DIR" ]; then
+  existing="$(command -v ai-workflow 2>/dev/null || true)"
+  case "$existing" in
+    /*) INSTALL_DIR="$(dirname "$existing")" ;;
+    *) INSTALL_DIR="$HOME/.local/bin" ;;
+  esac
+fi
 
 if [ -n "${AI_WORKFLOW_VERSION:-}" ]; then
   VERSION="${AI_WORKFLOW_VERSION#v}"
@@ -56,7 +64,9 @@ fi
 [ "$expected" = "$actual" ] || { echo "SHA-256 verification failed for $asset" >&2; exit 1; }
 
 mkdir -p "$INSTALL_DIR"
-install -m 0755 "$tmp/$asset" "$INSTALL_DIR/ai-workflow"
+# Rename into place: unlike writing over it, a rename also replaces a running binary.
+install -m 0755 "$tmp/$asset" "$INSTALL_DIR/.ai-workflow.new"
+mv -f "$INSTALL_DIR/.ai-workflow.new" "$INSTALL_DIR/ai-workflow"
 
 echo "Installed ai-workflow $VERSION to $INSTALL_DIR/ai-workflow (SHA-256 verified)"
 case ":$PATH:" in *":$INSTALL_DIR:"*) ;; *) echo "Add $INSTALL_DIR to your PATH." ;; esac

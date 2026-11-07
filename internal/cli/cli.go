@@ -52,6 +52,8 @@ func RunWithStdin(args []string, in io.Reader, out, errOut io.Writer) int {
 	case "--version", "version":
 		fmt.Fprintln(out, version.Version)
 		return 0
+	case "update":
+		return updateCmd(args[1:], out, errOut)
 	case "setup":
 		return setup(root, args[1:], out, errOut)
 	case "bootstrap", "init":
@@ -160,7 +162,8 @@ Commands:
   index                      rebuild indexes (--mode auto|incremental|full, --incremental)
   mcp                        serve brief, context, route, search, memory, verify, handoff, compress as MCP tools over stdio
   doctor [--strict]          validate the environment
-  version                    print the version`)
+  version                    print the version
+  update                     replace this binary with the latest GitHub release (SHA-256 verified)`)
 }
 
 // printJSON marshals v as indented JSON and writes it to w, followed by a newline.

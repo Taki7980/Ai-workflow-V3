@@ -42,6 +42,8 @@ gh attestation verify "$(command -v ai-workflow)" --repo Taki7980/Ai-workflow-V3
 
 With a Go toolchain (1.26+): `go install github.com/Taki7980/ai-workflow-v3/cmd/ai-workflow@latest`.
 
+**Update:** run `ai-workflow update` (v0.4.2+). It downloads the latest release, checks it against `SHA256SUMS` and replaces the binary in place, even while an agent's MCP server is running it; restart the agent to load the new version. Re-running the install command does the same: with no `AI_WORKFLOW_INSTALL_DIR`, it replaces the `ai-workflow` already on your `PATH` instead of installing a second copy.
+
 Upgrading from a release that used symbol extractor `symbols-v1`: run `ai-workflow index` once in each workspace. Until you do, `brief` reports ``index unavailable: <repo> (run `ai-workflow index`)`` and falls back to source search.
 
 ## Quick start
