@@ -62,6 +62,8 @@ When files are already changed, `brief` and `verify` also return `co_changed_fil
 
 Symbols are extracted with the Go AST for Go and with declaration patterns for every other indexed language. These cover Python, JavaScript/TypeScript (including arrow functions bound to names and class methods), Java, C#, Kotlin, Swift, PHP, Ruby, Rust and C/C++. Release binaries are built without cgo, so these patterns are the default extractor; the `treesitter` build tag is optional. On sindresorhus/ky the extractor finds 959 symbols where the previous one found 124. On held-out ky commits, file recall@5 rose from 0.35 to 0.38 and MRR from 0.37 to 0.45.
 
+`search` scores each symbol by its own BM25 match plus its file's match, where the file is its name and every symbol name in it. A file that matches several query terms across its symbols then outranks a lone name match elsewhere. On held-out commits, file recall@5 rose from 0.60 to 0.62 on the V2 Python codebase and from 0.38 to 0.40 on ky, MRR rose from 0.45 to 0.48 and from 0.44 to 0.47, and briefs used 4–6% fewer context tokens.
+
 ## Use with AI agents (MCP)
 
 `ai-workflow mcp` serves the workflow as [MCP](https://modelcontextprotocol.io) tools over stdio, so agents call it natively instead of shelling out: `brief`, `context`, `route`, `search`, `memory_search`, `memory_add`, `verify`, `handoff_validate`, `compress`.
@@ -167,6 +169,7 @@ Releases are cut by pushing a `vX.Y.Z` tag: `.github/workflows/release.yml` test
 
 - **Index coverage.** Code-localization agents work from an index of code entities such as files, classes and functions ([LocAgent, arXiv:2503.09089](https://arxiv.org/abs/2503.09089)). A symbol the extractor misses cannot be retrieved, so the extractor now covers every language that V3 indexes.
 - **History as a signal.** Commit history is an underused signal in repository-level code search ([arXiv:2502.07067](https://arxiv.org/abs/2502.07067)). Mining co-changes from version history to suggest related edits comes from Zimmermann et al., "Mining Version Histories to Guide Software Changes" (ICSE 2004). This is the source of `co_changed_files`.
+- **File-level evidence.** Agent retrieval improves when whole files and their paths are ranked, not only isolated symbols ([Agent Retrieval Bench, arXiv:2607.24882](https://arxiv.org/abs/2607.24882)). Bug localization also ranks larger files higher because they change more often (BugLocator, Zhou et al., ICSE 2012). For this reason `search` adds a file-level BM25 score with weak length normalization to every symbol in the file.
 - **Short agent feedback.** Agent–computer interfaces work best when feedback is concise and bounded ([SWE-agent, arXiv:2405.15793](https://arxiv.org/abs/2405.15793)). Models also use content in the middle of long contexts poorly ([Lost in the Middle, arXiv:2307.03172](https://arxiv.org/abs/2307.03172)). For these reasons co-change hints stay one capped line and are not added to the context.
 - **Considered, not adopted.** Learned context pruning ([SWE-Pruner, arXiv:2601.16746](https://arxiv.org/abs/2601.16746)) needs a model at query time. V3 stays a model-free binary.
 
