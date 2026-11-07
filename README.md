@@ -163,7 +163,7 @@ go test ./...
 go build -o bin/ai-workflow ./cmd/ai-workflow
 ```
 
-Releases are cut by pushing a `vX.Y.Z` tag: `.github/workflows/release.yml` tests, cross-compiles static binaries for linux/darwin/windows × amd64/arm64, writes `SHA256SUMS`, attests build provenance and publishes the GitHub release.
+Every push to `main` that passes CI is published as the next patch release, so the installers and `go install ...@latest` always fetch current `main`. For a minor or major release, push a `vX.Y.0` tag yourself. Either way `.github/workflows/release.yml` tests, cross-compiles static binaries for linux/darwin/windows × amd64/arm64, writes `SHA256SUMS`, attests build provenance and publishes the GitHub release.
 
 ## Research basis
 
