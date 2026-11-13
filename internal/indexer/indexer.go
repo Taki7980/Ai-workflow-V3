@@ -39,6 +39,7 @@ type Index struct {
 	BuiltAt           string               `json:"built_at"`
 	Files             map[string]FileState `json:"files"`
 	Symbols           []Symbol             `json:"symbols"`
+	History           map[string]float64   `json:"history,omitempty"`
 }
 
 type WorkspaceBuildResult struct {

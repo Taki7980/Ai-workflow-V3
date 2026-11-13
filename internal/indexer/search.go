@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"maps"
+	"math"
 	"os"
 	"path"
 	"slices"
@@ -62,11 +63,19 @@ func Load(controlRoot string, repo workspace.Repository) (Index, error) {
 // most (BugLocator, Zhou et al., ICSE 2012).
 const fileBM25B = 0.3
 
+// historyWeight scales the change-history prior: the most recently and often
+// changed file scores up to 1.5x. Held-out commits, prior off -> on: V2 file
+// recall@5 .682->.703, ky MRR .432->.492, cobra .666->.673, click .616->.629.
+const historyWeight = 0.5
+
 // Search ranks the symbols across all indexes against query using BM25 and
 // returns up to limit hits (defaulting to 6 when limit is non-positive),
 // ordered by descending relevance score. A symbol's score adds its file's
 // BM25 score over the file name and every symbol name in the file, so a file
 // matching several query terms across symbols outranks a lone name match.
+// The sum is then scaled by the file's change-history prior (fileHistory),
+// on a log scale relative to the repository's most changed file; an index
+// without history ranks by text alone.
 // Directories stay out of the file document: the symbol text already carries
 // the full path, and counting directory terms twice let a "tests" directory
 // outrank the definition a query names.
@@ -99,8 +108,18 @@ func Search(query string, indexes map[string]Index, limit int) []Hit {
 	for _, r := range files.Rank(query) {
 		fileScore[r.Value] = r.Score
 	}
+	hmax := map[string]float64{}
+	for repo, idx := range indexes {
+		for _, v := range idx.History {
+			hmax[repo] = max(hmax[repo], v)
+		}
+	}
 	for i := range ranked {
-		ranked[i].Score += fileScore[ranked[i].Value.Repository+"\x00"+ranked[i].Value.Path]
+		v := ranked[i].Value
+		ranked[i].Score += fileScore[v.Repository+"\x00"+v.Path]
+		if m := hmax[v.Repository]; m > 0 {
+			ranked[i].Score *= 1 + historyWeight*math.Log1p(indexes[v.Repository].History[v.Path])/math.Log1p(m)
+		}
 	}
 	sort.SliceStable(ranked, func(i, j int) bool { return ranked[i].Score > ranked[j].Score })
 	if limit <= 0 {

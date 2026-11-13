@@ -185,6 +185,7 @@ func BuildWithMode(ctx context.Context, controlRoot string, repo workspace.Repos
 
 	sortSymbols(idx.Symbols)
 	stats.Symbols = len(idx.Symbols)
+	idx.History = fileHistory(ctx, repoRoot, idx.Files)
 	if err := storage.WriteJSON(Path(controlRoot, repo), idx); err != nil {
 		return Index{}, stats, err
 	}
