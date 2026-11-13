@@ -33,8 +33,19 @@ func BenchmarkSearch100k(b *testing.B) {
 		idx.Symbols = append(idx.Symbols, Symbol{Name: fmt.Sprintf("handleRequest%dRetry", i%5000), Kind: "function", Path: fmt.Sprintf("pkg/sub%d/file%d.go", i%500, i/10), Line: i % 300})
 	}
 	indexes := map[string]Index{"r": idx}
-	b.ReportAllocs()
-	for b.Loop() {
-		Search("refactor payment retry handler", indexes, 200)
-	}
+	// cold rebuilds the BM25 indexes each query, as a one-shot CLI run does;
+	// warm reuses them, as the long-running MCP server does.
+	b.Run("cold", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			lastSearch.idx = nil
+			Search("refactor payment retry handler", indexes, 200)
+		}
+	})
+	b.Run("warm", func(b *testing.B) {
+		b.ReportAllocs()
+		for b.Loop() {
+			Search("refactor payment retry handler", indexes, 200)
+		}
+	})
 }

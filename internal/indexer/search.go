@@ -1,13 +1,9 @@
 package indexer
 
 import (
-	"encoding/json"
 	"fmt"
-	"maps"
 	"math"
-	"os"
 	"path"
-	"slices"
 	"sort"
 	"strings"
 
@@ -25,15 +21,7 @@ type Hit struct {
 }
 
 func loadRaw(controlRoot string, repo workspace.Repository) (Index, error) {
-	b, err := os.ReadFile(Path(controlRoot, repo))
-	if err != nil {
-		return Index{}, err
-	}
-	var idx Index
-	if err := json.Unmarshal(b, &idx); err != nil {
-		return Index{}, err
-	}
-	return idx, nil
+	return readIndexFile(Path(controlRoot, repo))
 }
 
 // Load reads and validates the on-disk index for repo within the workspace
@@ -79,33 +67,13 @@ const historyWeight = 0.5
 // Directories stay out of the file document: the symbol text already carries
 // the full path, and counting directory terms twice let a "tests" directory
 // outrank the definition a query names.
+// Indexes are treated as read-only: the built BM25 indexes are cached across
+// calls while each repository's symbol slice is the same one (searchIndexes).
 func Search(query string, indexes map[string]Index, limit int) []Hit {
-	texts := []string{}
-	values := []Hit{}
-	fileDocs := map[string][]string{} // repository + NUL + path -> file name, then symbol names
-	fileKeys := []string{}
-	// Sorted repositories make BM25 tie order deterministic across runs.
-	for _, repo := range slices.Sorted(maps.Keys(indexes)) {
-		for _, s := range indexes[repo].Symbols {
-			texts = append(texts, s.Name+" "+s.Kind+" "+s.Path)
-			values = append(values, Hit{Repository: repo, Path: s.Path, Line: s.Line, Kind: s.Kind, Symbol: s.Name})
-			k := repo + "\x00" + s.Path
-			if fileDocs[k] == nil {
-				fileKeys = append(fileKeys, k)
-				fileDocs[k] = []string{path.Base(s.Path)}
-			}
-			fileDocs[k] = append(fileDocs[k], s.Name)
-		}
-	}
-	ranked := retrieval.NewBM25(texts, values).Rank(query)
-	fileTexts := make([]string, len(fileKeys))
-	for i, k := range fileKeys {
-		fileTexts[i] = strings.Join(fileDocs[k], " ")
-	}
-	files := retrieval.NewBM25(fileTexts, fileKeys)
-	files.B = fileBM25B
+	si := searchIndexes(indexes)
+	ranked := si.symbols.Rank(query)
 	fileScore := map[string]float64{}
-	for _, r := range files.Rank(query) {
+	for _, r := range si.files.Rank(query) {
 		fileScore[r.Value] = r.Score
 	}
 	hmax := map[string]float64{}
@@ -135,4 +103,33 @@ func Search(query string, indexes map[string]Index, limit int) []Hit {
 		out = append(out, h)
 	}
 	return out
+}
+
+// buildSearchIndex builds the symbol BM25 index and the file BM25 index,
+// whose documents are a file's name and every symbol name in it, over repos
+// in order; sorted repositories make tie order deterministic across runs.
+func buildSearchIndex(repos []string, indexes map[string]Index) *searchIndex {
+	texts := []string{}
+	values := []Hit{}
+	fileDocs := map[string][]string{} // repository + NUL + path -> file name, then symbol names
+	fileKeys := []string{}
+	for _, repo := range repos {
+		for _, s := range indexes[repo].Symbols {
+			texts = append(texts, s.Name+" "+s.Kind+" "+s.Path)
+			values = append(values, Hit{Repository: repo, Path: s.Path, Line: s.Line, Kind: s.Kind, Symbol: s.Name})
+			k := repo + "\x00" + s.Path
+			if fileDocs[k] == nil {
+				fileKeys = append(fileKeys, k)
+				fileDocs[k] = []string{path.Base(s.Path)}
+			}
+			fileDocs[k] = append(fileDocs[k], s.Name)
+		}
+	}
+	fileTexts := make([]string, len(fileKeys))
+	for i, k := range fileKeys {
+		fileTexts[i] = strings.Join(fileDocs[k], " ")
+	}
+	files := retrieval.NewBM25(fileTexts, fileKeys)
+	files.B = fileBM25B
+	return &searchIndex{symbols: retrieval.NewBM25(texts, values), files: files}
 }
