@@ -2,35 +2,60 @@ package retrieval
 
 import (
 	"math"
-	"regexp"
+	"slices"
 	"sort"
 	"strings"
-	"unicode"
 )
 
-var wordRE = regexp.MustCompile(`[[:alnum:]]+`)
-
-// Tokenize splits text into lowercase alphanumeric tokens, additionally
-// emitting camelCase-split sub-tokens for improved matching.
+// Tokenize splits text into lowercase ASCII alphanumeric tokens, additionally
+// emitting camelCase-split sub-tokens for improved matching. Underscores and
+// every non-ASCII byte separate tokens.
 func Tokenize(text string) []string {
-	raw := wordRE.FindAllString(strings.ReplaceAll(text, "_", " "), -1)
-	out := make([]string, 0, len(raw)*2)
-	for _, token := range raw {
-		lower := strings.ToLower(token)
-		if len([]rune(lower)) >= 2 {
-			out = append(out, lower)
+	return appendTokens(make([]string, 0, len(text)/4), text)
+}
+
+// appendTokens is Tokenize into a reusable buffer. A byte scanner instead of
+// a regular expression: index builds tokenize every symbol on every query.
+func appendTokens(out []string, text string) []string {
+	for i := 0; i < len(text); {
+		if !isAlnum(text[i]) {
+			i++
+			continue
 		}
-		parts := camelParts(token)
-		if len(parts) > 1 {
-			for _, p := range parts {
-				if len([]rune(p)) >= 2 {
-					out = append(out, strings.ToLower(p))
-				}
+		j := i + 1
+		for j < len(text) && isAlnum(text[j]) {
+			j++
+		}
+		tok := text[i:j]
+		i = j
+		if len(tok) >= 2 {
+			out = append(out, strings.ToLower(tok))
+		}
+		// camelCase parts are emitted only when the token splits at least once.
+		start := 0
+		for k := 1; k < len(tok); k++ {
+			if isLower(tok[k-1]) && isUpper(tok[k]) || isUpper(tok[k-1]) && isUpper(tok[k]) && k+1 < len(tok) && isLower(tok[k+1]) {
+				out = appendPart(out, tok[start:k])
+				start = k
 			}
+		}
+		if start > 0 {
+			out = appendPart(out, tok[start:])
 		}
 	}
 	return out
 }
+
+func appendPart(out []string, p string) []string {
+	if len(p) >= 2 {
+		out = append(out, strings.ToLower(p))
+	}
+	return out
+}
+
+func isLower(c byte) bool { return 'a' <= c && c <= 'z' }
+func isUpper(c byte) bool { return 'A' <= c && c <= 'Z' }
+func isAlnum(c byte) bool { return isLower(c) || isUpper(c) || '0' <= c && c <= '9' }
 
 // stems maps tokens to a crude English stem so task prose ("gathering",
 // "tiers") matches identifiers ("gather", "tier"). BM25 only: routing counts
@@ -53,39 +78,19 @@ func stems(toks []string) []string {
 	return toks
 }
 
-// camelParts splits s at camelCase boundaries, returning the resulting substrings.
-func camelParts(s string) []string {
-	r := []rune(s)
-	if len(r) == 0 {
-		return nil
-	}
-	start := 0
-	out := []string{}
-	for i := 1; i < len(r); i++ {
-		boundary := unicode.IsLower(r[i-1]) && unicode.IsUpper(r[i]) || (unicode.IsUpper(r[i-1]) && unicode.IsUpper(r[i]) && i+1 < len(r) && unicode.IsLower(r[i+1]))
-		if boundary {
-			out = append(out, string(r[start:i]))
-			start = i
-		}
-	}
-	out = append(out, string(r[start:]))
-	return out
+type posting struct {
+	doc, tf int32
 }
 
-type Document[T any] struct {
-	Value  T
-	Tokens []string
-	Term   map[string]int
-	Set    map[string]struct{}
-	Length int
-}
-
+// BM25 is an inverted index: Rank touches only documents that contain a
+// query term, so query cost follows matches, not corpus size.
 type BM25[T any] struct {
-	K1    float64
-	B     float64
-	Docs  []Document[T]
-	IDF   map[string]float64
-	AvgDL float64
+	K1       float64
+	B        float64
+	values   []T
+	lengths  []int32
+	postings map[string][]posting
+	avgDL    float64
 }
 
 type Scored[T any] struct {
@@ -94,70 +99,65 @@ type Scored[T any] struct {
 }
 
 // NewBM25 builds a BM25 index over texts, pairing each text with its
-// corresponding value, and precomputes term frequencies, document
-// frequencies, and inverse document frequencies for ranking.
+// corresponding value. Mismatched lengths yield an empty index.
 func NewBM25[T any](texts []string, values []T) *BM25[T] {
-	b := &BM25[T]{K1: 1.5, B: .75, IDF: map[string]float64{}}
-	if len(texts) != len(values) {
+	b := &BM25[T]{K1: 1.5, B: .75}
+	if len(texts) != len(values) || len(texts) == 0 {
 		return b
 	}
-	df := map[string]int{}
+	b.values = slices.Clone(values)
+	b.lengths = make([]int32, len(texts))
+	b.postings = make(map[string][]posting, len(texts))
+	var toks []string
 	total := 0
 	for i, t := range texts {
-		toks := stems(Tokenize(t))
-		term := map[string]int{}
-		set := map[string]struct{}{}
-		for _, x := range toks {
-			term[x]++
-			set[x] = struct{}{}
+		toks = stems(appendTokens(toks[:0], t))
+		// Sorting groups repeats, so term frequency needs no per-document map.
+		slices.Sort(toks)
+		for j := 0; j < len(toks); {
+			k := j + 1
+			for k < len(toks) && toks[k] == toks[j] {
+				k++
+			}
+			b.postings[toks[j]] = append(b.postings[toks[j]], posting{doc: int32(i), tf: int32(k - j)})
+			j = k
 		}
-		for x := range set {
-			df[x]++
-		}
-		b.Docs = append(b.Docs, Document[T]{Value: values[i], Tokens: toks, Term: term, Set: set, Length: len(toks)})
+		b.lengths[i] = int32(len(toks))
 		total += len(toks)
 	}
-	if len(b.Docs) > 0 {
-		b.AvgDL = float64(total) / float64(len(b.Docs))
-	}
-	n := float64(len(b.Docs))
-	for token, f := range df {
-		idf := math.Log(1 + (n-float64(f)+.5)/(float64(f)+.5))
-		if idf < .01 {
-			idf = .01
-		}
-		b.IDF[token] = idf
-	}
+	b.avgDL = float64(total) / float64(len(texts))
 	return b
 }
 
-// Rank scores every document in b against query using the BM25 formula and
-// returns the matching documents sorted by descending score.
+// Rank scores the documents in b against query using the BM25 formula and
+// returns those matching at least one query term, sorted by descending score;
+// ties keep document order.
 func (b *BM25[T]) Rank(query string) []Scored[T] {
-	if b.AvgDL <= 0 {
+	if b.avgDL <= 0 {
 		return nil
 	}
-	qset := map[string]struct{}{}
-	for _, t := range stems(Tokenize(query)) {
-		qset[t] = struct{}{}
+	q := stems(Tokenize(query))
+	slices.Sort(q)
+	q = slices.Compact(q)
+	n := float64(len(b.values))
+	scores := make([]float64, len(b.values))
+	for _, term := range q {
+		ps := b.postings[term]
+		if len(ps) == 0 {
+			continue
+		}
+		df := float64(len(ps))
+		idf := math.Max(math.Log(1+(n-df+.5)/(df+.5)), .01)
+		for _, p := range ps {
+			f := float64(p.tf)
+			lenNorm := 1 - b.B + b.B*(float64(b.lengths[p.doc])/b.avgDL)
+			scores[p.doc] += idf * (f * (b.K1 + 1)) / (f + b.K1*lenNorm)
+		}
 	}
 	out := []Scored[T]{}
-	for _, d := range b.Docs {
-		score := 0.0
-		lenNorm := 1 - b.B + b.B*(float64(d.Length)/b.AvgDL)
-		for q := range qset {
-			f := d.Term[q]
-			if f == 0 {
-				continue
-			}
-			idf := b.IDF[q]
-			if idf == 0 {
-				idf = .01
-			}
-			score += idf * (float64(f) * (b.K1 + 1)) / (float64(f) + b.K1*lenNorm)
-		}
-		if score > 0 {
-			out = append(out, Scored[T]{Score: score, Value: d.Value})
+	for i, s := range scores {
+		if s > 0 {
+			out = append(out, Scored[T]{Score: s, Value: b.values[i]})
 		}
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].Score > out[j].Score })

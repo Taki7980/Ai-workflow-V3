@@ -209,7 +209,7 @@ BenchmarkIndexIncrementalOneChanged-8   62 ops     19.33 ms/op     248 KB/op    
 ```
 
 Key systems characteristics:
-- **Zero-Alloc In-Memory Evaluation:** BM25 scoring & reciprocal rank fusion execute with sub-millisecond retrieval overhead.
+- **Inverted-index BM25:** `search` rebuilds its index from the stored symbols on every query, so query cost scales with index size. On a 100,000-symbol index, `BenchmarkSearch100k` takes 0.25–0.40 s, 168 MB and 1.1 M allocations per query, down from 0.76–0.80 s, 416 MB and 5.0 M with the regex tokenizer. A 10,000-symbol index answers in about 26 ms. Rankings are unchanged: a fuzz test checks the tokenizer against the old regex, and a brute-force test checks the BM25 scores.
 - **Protocol Version Support:** Backwards-compatible MCP JSON-RPC protocol versions (`2025-06-18`, `2025-03-26`, `2024-11-05`).
 
 Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) and [`docs/MIGRATION_FROM_V2.md`](docs/MIGRATION_FROM_V2.md).
